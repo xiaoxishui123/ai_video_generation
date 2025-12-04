@@ -1,0 +1,6 @@
+# AI视频生成插件依赖
+# Python >= 3.10
+
+dify_plugin>=0.2.0,<0.3.0
+requests>=2.28.0
+

@@ -1,0 +1,83 @@
+# 任务状态查询工具配置
+# 用于查询视频生成任务的状态
+
+identity:
+  name: query_task
+  author: xiaoxishui
+  label:
+    zh_Hans: 查询任务状态
+    en_US: Query Task Status
+  description:
+    zh_Hans: 查询视频生成任务的状态和结果，支持阿里云百炼和火山方舟平台
+    en_US: Query video generation task status and result, supporting Aliyun Bailian and Volcengine Ark
+
+# 工具参数定义
+parameters:
+  # 平台选择
+  - name: provider
+    type: select
+    required: true
+    label:
+      zh_Hans: 平台
+      en_US: Platform
+    human_description:
+      zh_Hans: 任务所属的平台
+      en_US: Platform the task belongs to
+    options:
+      - value: aliyun
+        label:
+          zh_Hans: 阿里云百炼
+          en_US: Aliyun Bailian
+      - value: volcengine
+        label:
+          zh_Hans: 火山方舟
+          en_US: Volcengine Ark
+    default: aliyun
+    form: form
+
+  # 任务ID
+  - name: task_id
+    type: string
+    required: true
+    label:
+      zh_Hans: 任务ID
+      en_US: Task ID
+    human_description:
+      zh_Hans: 视频生成任务的ID
+      en_US: ID of the video generation task
+    llm_description: 之前提交视频生成任务时返回的task_id
+    form: llm
+    placeholder:
+      zh_Hans: xxxxx-task-id-xxxxx
+      en_US: xxxxx-task-id-xxxxx
+
+# 输出定义
+output:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: 是否查询成功
+    provider:
+      type: string
+      description: 平台
+    task_id:
+      type: string
+      description: 任务ID
+    status:
+      type: string
+      description: 任务状态 (PENDING/RUNNING/SUCCEEDED/FAILED)
+    video_url:
+      type: string
+      description: 视频URL（任务成功时）
+    cover_url:
+      type: string
+      description: 封面图URL（任务成功时）
+    error_message:
+      type: string
+      description: 错误信息（任务失败时）
+
+extra:
+  python:
+    source: query_task.py
+

@@ -1,0 +1,45 @@
+identity:
+  name: ai_video
+  author: xiaoxishui
+  label:
+    zh_Hans: AI视频生成
+    en_US: AI Video Generation
+  description:
+    zh_Hans: AI视频生成工具，支持阿里云百炼和火山方舟平台的文生视频(T2V)和图生视频(I2V)功能
+    en_US: AI Video Generation tool supporting Aliyun Bailian and Volcengine platforms for T2V and I2V
+
+credentials_for_provider:
+  aliyun_api_key:
+    type: secret-input
+    required: false
+    label:
+      zh_Hans: 阿里云百炼 API Key
+      en_US: Aliyun Bailian API Key
+    placeholder:
+      zh_Hans: 请输入阿里云百炼 DashScope API Key
+      en_US: Enter Aliyun Bailian DashScope API Key
+    help:
+      zh_Hans: 从阿里云百炼控制台获取的 API Key（https://bailian.console.aliyun.com/）
+      en_US: API Key from Aliyun Bailian console
+
+  volcengine_api_key:
+    type: secret-input
+    required: false
+    label:
+      zh_Hans: 火山引擎 API Key
+      en_US: Volcengine API Key
+    placeholder:
+      zh_Hans: 请输入火山引擎视觉智能平台 API Key
+      en_US: Enter Volcengine Visual Intelligence API Key
+    help:
+      zh_Hans: 从火山引擎控制台获取（https://console.volcengine.com/home）。测试Key：719f1aec-26af-4bac-b1df-1fc26a95df73
+      en_US: API Key from Volcengine console. Test Key provided for testing.
+
+tools:
+  - tools/text_to_video.yaml
+  - tools/image_to_video.yaml
+  - tools/query_task.yaml
+
+extra:
+  python:
+    source: ai_video.py

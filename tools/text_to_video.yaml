@@ -1,0 +1,178 @@
+# 文本生成视频工具配置
+# 支持阿里云百炼和火山方舟双平台
+
+identity:
+  name: text_to_video
+  author: xiaoxishui
+  label:
+    zh_Hans: 文本生成视频
+    en_US: Text to Video
+  description:
+    zh_Hans: 根据文本描述生成视频，支持阿里云百炼(通义万相)和火山方舟(豆包Seedance)模型
+    en_US: Generate video from text description, supporting Aliyun Wanxiang and Volcengine Seedance models
+
+# 工具参数定义
+parameters:
+  # 平台选择
+  - name: provider
+    type: select
+    required: true
+    label:
+      zh_Hans: 平台
+      en_US: Platform
+    human_description:
+      zh_Hans: 选择视频生成平台
+      en_US: Select video generation platform
+    options:
+      - value: aliyun
+        label:
+          zh_Hans: 阿里云百炼
+          en_US: Aliyun Bailian
+      - value: volcengine
+        label:
+          zh_Hans: 火山方舟
+          en_US: Volcengine Ark
+    default: volcengine
+    form: form
+
+  # 模型选择
+  - name: model
+    type: select
+    required: true
+    label:
+      zh_Hans: 模型
+      en_US: Model
+    human_description:
+      zh_Hans: 选择视频生成模型
+      en_US: Select video generation model
+    options:
+      # 阿里云模型
+      - value: wan2.5-t2v-preview
+        label:
+          zh_Hans: "[阿里云] 通义万相 T2V"
+          en_US: "[Aliyun] Wanxiang T2V"
+      # 火山方舟模型 - 使用最新版本模型ID
+      - value: doubao-seedance-1-0-lite-t2v-250428
+        label:
+          zh_Hans: "[火山] Seedance Lite T2V"
+          en_US: "[Volcengine] Seedance Lite T2V"
+    default: doubao-seedance-1-0-lite-t2v-250428
+    form: form
+
+  # 视频描述
+  - name: prompt
+    type: string
+    required: true
+    label:
+      zh_Hans: 视频描述
+      en_US: Video Description
+    human_description:
+      zh_Hans: 详细描述你想要生成的视频内容，包括场景、动作、风格等
+      en_US: Describe the video content you want, including scene, action, style, etc.
+    llm_description: 视频内容的详细描述，越详细越好，如"一只可爱的小猫在阳光下奔跑，草地上充满了小花"
+    form: llm
+    placeholder:
+      zh_Hans: 一只可爱的小猫在阳光下奔跑，草地上充满了小花
+      en_US: A cute cat running in the sunshine, with flowers on the grass
+
+  # 宽高比（新增）
+  - name: aspect_ratio
+    type: select
+    required: false
+    label:
+      zh_Hans: 宽高比
+      en_US: Aspect Ratio
+    human_description:
+      zh_Hans: 视频的宽高比例
+      en_US: Aspect ratio of the video
+    options:
+      - value: "16:9"
+        label:
+          zh_Hans: 16:9 (横屏)
+          en_US: 16:9 (Landscape)
+      - value: "9:16"
+        label:
+          zh_Hans: 9:16 (竖屏)
+          en_US: 9:16 (Portrait)
+      - value: "4:3"
+        label:
+          zh_Hans: 4:3 (标准)
+          en_US: 4:3 (Standard)
+      - value: "1:1"
+        label:
+          zh_Hans: 1:1 (正方形)
+          en_US: 1:1 (Square)
+    default: "16:9"
+    form: form
+
+  # 视频时长
+  - name: duration
+    type: select
+    required: false
+    label:
+      zh_Hans: 视频时长
+      en_US: Video Duration
+    human_description:
+      zh_Hans: 生成视频的时长（秒）
+      en_US: Duration of the generated video (seconds)
+    options:
+      - value: "5"
+        label:
+          zh_Hans: 5秒
+          en_US: 5 seconds
+      - value: "10"
+        label:
+          zh_Hans: 10秒
+          en_US: 10 seconds
+    default: "5"
+    form: form
+
+  # 是否等待完成
+  - name: wait_for_completion
+    type: boolean
+    required: false
+    label:
+      zh_Hans: 等待完成
+      en_US: Wait for Completion
+    human_description:
+      zh_Hans: 是否等待视频生成完成后返回结果，关闭则只返回任务ID
+      en_US: Wait for video generation to complete, disable to only return task ID
+    default: true
+    form: form
+
+# 输出定义
+output:
+  type: object
+  properties:
+    success:
+      type: boolean
+      description: 是否成功
+    provider:
+      type: string
+      description: 使用的平台
+    model:
+      type: string
+      description: 使用的模型
+    task_id:
+      type: string
+      description: 任务ID
+    status:
+      type: string
+      description: 任务状态
+    video_url:
+      type: string
+      description: 视频URL
+    cover_url:
+      type: string
+      description: 封面图URL
+    duration:
+      type: number
+      description: 视频时长
+    error_message:
+      type: string
+      description: 错误信息
+
+extra:
+  python:
+    source: text_to_video.py
+
