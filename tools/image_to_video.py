@@ -9,7 +9,6 @@
 """
 
 import time
-import base64
 import requests
 from typing import Any, Generator
 from dify_plugin import Tool
@@ -41,115 +40,6 @@ class ImageToVideoTool(Tool):
     # 轮询配置
     POLL_INTERVAL = 5
     MAX_POLL_ATTEMPTS = 120
-
-    def _convert_image_to_base64(self, image_url: str) -> tuple[str, str]:
-        """
-        下载图片并转换为Base64格式
-        
-        Args:
-            image_url: 图片URL
-            
-        Returns:
-            tuple: (base64_data_url, error_message)
-            - 成功时返回 (data:image/xxx;base64,..., "")
-            - 失败时返回 ("", error_message)
-        """
-        try:
-            # 下载图片
-            response = requests.get(image_url, timeout=30, stream=True)
-            response.raise_for_status()
-            
-            # 获取内容类型
-            content_type = response.headers.get('Content-Type', 'image/jpeg')
-            if not content_type.startswith('image/'):
-                content_type = 'image/jpeg'
-            
-            # 获取图片格式
-            image_format = content_type.split('/')[-1].lower()
-            # 处理常见格式映射
-            format_map = {
-                'jpg': 'jpeg',
-                'png': 'png',
-                'webp': 'webp',
-                'gif': 'gif',
-                'bmp': 'bmp',
-                'tiff': 'tiff'
-            }
-            image_format = format_map.get(image_format, 'jpeg')
-            
-            # 转换为Base64
-            image_data = response.content
-            base64_data = base64.b64encode(image_data).decode('utf-8')
-            
-            # 构建data URL格式
-            data_url = f"data:image/{image_format};base64,{base64_data}"
-            
-            return data_url, ""
-            
-        except requests.Timeout:
-            return "", "图片下载超时"
-        except requests.RequestException as e:
-            return "", f"图片下载失败: {str(e)}"
-        except Exception as e:
-            return "", f"图片处理失败: {str(e)}"
-
-    def _is_public_accessible_url(self, url: str) -> bool:
-        """
-        判断URL是否可能是公网可访问的
-        
-        火山方舟服务器在北京，需要公网可访问的URL
-        内网地址、localhost、私有IP等都不行
-        """
-        from urllib.parse import urlparse
-        
-        try:
-            parsed = urlparse(url)
-            host = parsed.hostname or ""
-            
-            # 私有IP段和特殊地址
-            private_patterns = [
-                'localhost',
-                '127.0.0.1',
-                '10.',           # 10.0.0.0/8
-                '172.16.', '172.17.', '172.18.', '172.19.',  # 172.16.0.0/12
-                '172.20.', '172.21.', '172.22.', '172.23.',
-                '172.24.', '172.25.', '172.26.', '172.27.',
-                '172.28.', '172.29.', '172.30.', '172.31.',
-                '192.168.',      # 192.168.0.0/16
-            ]
-            
-            # 检查是否是私有地址
-            for pattern in private_patterns:
-                if host.startswith(pattern) or host == pattern.rstrip('.'):
-                    return False
-            
-            # 检查是否是常见的云存储域名（这些肯定是公网可访问的）
-            public_domains = [
-                'oss-cn-', 'aliyuncs.com',  # 阿里云OSS
-                'cos.', 'myqcloud.com',      # 腾讯云COS
-                'bos.', 'bcebos.com',        # 百度云BOS
-                'tos-cn-', 'volces.com',     # 火山引擎TOS
-                's3.amazonaws.com',          # AWS S3
-                'blob.core.windows.net',     # Azure Blob
-                'storage.googleapis.com',    # GCS
-            ]
-            
-            for domain in public_domains:
-                if domain in host:
-                    return True
-            
-            # 对于其他URL，通过检查端口来判断
-            # 如果是非标准端口（如8080），通常是内部服务
-            port = parsed.port
-            if port and port not in [80, 443]:
-                # 非标准端口，可能是内部服务，需要转换
-                return False
-            
-            # 默认假设是公网可访问的
-            return True
-            
-        except Exception:
-            return False
 
     def _invoke(
         self, tool_parameters: dict[str, Any]
@@ -353,38 +243,11 @@ class ImageToVideoTool(Tool):
         full_prompt = f"{prompt} --duration {duration}"
         
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
-        
-        # 检查图片URL是否公网可访问
-        # 火山方舟服务器位于北京，需要能访问到图片URL
-        # 如果是内网地址，需要转换为Base64格式
-        final_image_url = image_url
-        url_type = "URL"
-        
-        if not self._is_public_accessible_url(image_url):
-            yield self.create_text_message(
-                f"🔄 检测到内网图片地址，正在转换为Base64格式...\n"
-                f"📍 原始URL: {image_url[:60]}..."
-            )
-            
-            base64_url, error = self._convert_image_to_base64(image_url)
-            if error:
-                yield self.create_text_message(f"❌ 图片转换失败: {error}")
-                yield self.create_json_message({
-                    "success": False,
-                    "provider": "volcengine",
-                    "error_message": f"图片转换失败: {error}"
-                })
-                return
-            
-            final_image_url = base64_url
-            url_type = "Base64"
-            yield self.create_text_message(f"✅ 图片转换成功 (Base64格式)")
-        
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
-            f"🖼️ 图片: {url_type}\n"
+            f"🖼️ 图片: {image_url[:60]}...\n"
             f"⏱️ 时长: {duration}秒\n"
             f"💬 描述: {prompt[:50]}..."
         )
@@ -395,13 +258,12 @@ class ImageToVideoTool(Tool):
         }
         
         # Ark API 格式 - 图生视频
-        # 支持URL或Base64格式: data:image/<format>;base64,<base64_data>
         payload = {
             "model": model,
             "content": [
                 {
                     "type": "image_url",
-                    "image_url": {"url": final_image_url}
+                    "image_url": {"url": image_url}
                 },
                 {
                     "type": "text",
