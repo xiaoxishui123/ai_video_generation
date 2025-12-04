@@ -37,6 +37,18 @@ credentials_for_provider:
     help:
       zh_Hans: 从火山引擎控制台获取（https://console.volcengine.com/home）。测试Key：719f1aec-26af-4bac-b1df-1fc26a95df73
       en_US: API Key from Volcengine console. Test Key provided for testing.
+  volcengine_endpoint_id:
+    type: text-input
+    required: false
+    label:
+      zh_Hans: 火山引擎 Endpoint ID
+      en_US: Volcengine Endpoint ID
+    placeholder:
+      zh_Hans: 请输入 Ark 推理接入点 ID（例如 ep-20251203101110-4ddgq）
+      en_US: Enter Ark endpoint ID (e.g. ep-20251203101110-4ddgq)
+    help:
+      zh_Hans: 在火山方舟 Ark 控制台创建推理接入点后可获取
+      en_US: Create an inference endpoint in Volcengine Ark console to obtain this ID
 
 tools:
   - tools/text_to_video.yaml

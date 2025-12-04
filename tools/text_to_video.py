@@ -30,25 +30,16 @@ class TextToVideoTool(Tool):
     }
 
     # ========== 火山方舟配置 ==========
-    # 视觉智能开放平台API地址
-    VOLCENGINE_API_BASE = "https://visual.volcengineapi.com"
+    # 使用 Ark API (与官方 doubao_image 插件一致)
+    VOLCENGINE_API_BASE = "https://ark.cn-beijing.volces.com/api/v3"
     VOLCENGINE_MODELS = {
         "doubao-seedance-1-0-lite-t2v-250428": {"name": "Seedance Lite T2V"},
     }
     
-    # 宽高比映射 - 火山方舟
-    ASPECT_RATIO_MAP = {
-        "16:9": "16:9",
-        "9:16": "9:16",
-        "4:3": "4:3",
-        "1:1": "1:1",
-    }
-    
-    # 阿里云分辨率映射
+    # 阿里云分辨率映射 - 注意：宽*高 格式
     ALIYUN_SIZE_MAP = {
         "16:9": "1280*720",
         "9:16": "720*1280",
-        "4:3": "960*720",
         "1:1": "720*720",
     }
 
@@ -61,15 +52,8 @@ class TextToVideoTool(Tool):
     ) -> Generator[ToolInvokeMessage, None, None]:
         """
         执行工具调用 - 根据平台分发
-        
-        Args:
-            tool_parameters: 工具参数
-            
-        Yields:
-            ToolInvokeMessage: 工具调用消息
         """
         provider = tool_parameters.get("provider", "aliyun")
-        model = tool_parameters.get("model", "")
         prompt = tool_parameters.get("prompt", "").strip()
         
         # 参数验证
@@ -129,8 +113,7 @@ class TextToVideoTool(Tool):
             "model": model,
             "input": {"prompt": prompt},
             "parameters": {
-                "size": size,
-                "duration": 5  # 阿里云目前只支持5秒
+                "size": size
             }
         }
         
@@ -188,12 +171,6 @@ class TextToVideoTool(Tool):
     ) -> Generator[ToolInvokeMessage, None, None]:
         """
         轮询阿里云任务状态
-        
-        状态说明：
-        - PENDING: 任务等待中
-        - RUNNING: 任务运行中
-        - SUCCEEDED: 任务成功
-        - FAILED: 任务失败
         """
         headers = {"Authorization": f"Bearer {api_key}"}
         
@@ -224,8 +201,7 @@ class TextToVideoTool(Tool):
                         "task_id": task_id,
                         "status": "SUCCEEDED",
                         "video_url": video_url,
-                        "cover_url": cover_url,
-                        "duration": 5.0
+                        "cover_url": cover_url
                     })
                     return
                     
@@ -252,14 +228,11 @@ class TextToVideoTool(Tool):
                     time.sleep(self.POLL_INTERVAL)
                     
             except Exception as e:
-                # 网络错误时继续重试
                 time.sleep(self.POLL_INTERVAL)
         
         # 超时
         yield self.create_text_message(
-            f"⏰ 任务超时（等待超过{self.MAX_POLL_ATTEMPTS * self.POLL_INTERVAL}秒）\n"
-            f"🔖 任务ID: `{task_id}`\n"
-            f"请使用任务查询工具手动查询结果"
+            f"⏰ 任务超时\n🔖 任务ID: `{task_id}`\n请使用任务查询工具手动查询结果"
         )
         yield self.create_json_message({
             "success": False,
@@ -270,15 +243,14 @@ class TextToVideoTool(Tool):
             "error_message": "任务超时"
         })
 
-    # ========== 火山方舟实现 ==========
+    # ========== 火山方舟实现 (使用 Ark API) ==========
     def _invoke_volcengine(
         self, params: dict
     ) -> Generator[ToolInvokeMessage, None, None]:
         """
-        调用火山方舟视觉智能平台 Seedance API
+        调用火山方舟 Ark API (与官方 doubao_image 插件一致)
         
-        API文档：https://www.volcengine.com/docs/85128/1526761
-        参考: https://marketplace.dify.ai/plugins/allenwriter/doubao_image
+        API: https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks
         """
         # 获取凭证
         api_key = self.runtime.credentials.get("volcengine_api_key", "")
@@ -289,9 +261,16 @@ class TextToVideoTool(Tool):
         # 解析参数
         model = params.get("model", "doubao-seedance-1-0-lite-t2v-250428")
         prompt = params.get("prompt", "")
-        duration = int(params.get("duration", "5"))
+        duration = params.get("duration", "5")
         aspect_ratio = params.get("aspect_ratio", "16:9")
         wait_for_completion = params.get("wait_for_completion", True)
+        
+        # 构建带参数的 prompt (与官方插件一致)
+        full_prompt = prompt
+        if aspect_ratio and "--ratio" not in prompt:
+            full_prompt = f"{full_prompt} --ratio {aspect_ratio}"
+        if duration and "--duration" not in prompt and "--dur" not in prompt:
+            full_prompt = f"{full_prompt} --duration {duration}"
         
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         yield self.create_text_message(
@@ -309,39 +288,39 @@ class TextToVideoTool(Tool):
             "Content-Type": "application/json"
         }
         
-        # 构建请求体 - 火山方舟视觉智能平台格式
+        # 构建请求体 - 与官方 doubao_image 插件一致
         payload = {
-            "req_key": "jimeng_vgfm_t2v_l20",  # 文生视频接口标识
-            "prompt": prompt,
-            "model_version": model,
-            "duration": duration,
-            "aspect_ratio": aspect_ratio
+            "model": model,
+            "content": [
+                {
+                    "type": "text",
+                    "text": full_prompt
+                }
+            ]
         }
         
         try:
             # 提交任务
             response = requests.post(
-                f"{self.VOLCENGINE_API_BASE}/cv/v1/video_gen_async",
+                f"{self.VOLCENGINE_API_BASE}/contents/generations/tasks",
                 headers=headers,
                 json=payload,
                 timeout=30
             )
             
-            result = response.json()
-            
-            # 检查错误
-            if result.get("code") != 10000:
-                error_msg = result.get("message", str(result))
-                yield self.create_text_message(f"❌ 提交失败: {error_msg}")
+            if response.status_code != 200:
+                yield self.create_text_message(f"❌ 提交失败: {response.status_code} - {response.text}")
                 yield self.create_json_message({
                     "success": False,
                     "provider": "volcengine",
-                    "error_message": error_msg
+                    "error_message": response.text
                 })
                 return
             
+            result = response.json()
+            
             # 获取任务ID
-            task_id = result.get("data", {}).get("task_id")
+            task_id = result.get("id")
             if not task_id:
                 yield self.create_text_message(f"❌ 提交失败: 未获取到任务ID - {result}")
                 return
@@ -357,7 +336,7 @@ class TextToVideoTool(Tool):
                     "provider": "volcengine",
                     "model": model,
                     "task_id": task_id,
-                    "status": "Pending"
+                    "status": "running"
                 })
                 
         except requests.Timeout:
@@ -371,13 +350,9 @@ class TextToVideoTool(Tool):
         self, api_key: str, task_id: str, model: str
     ) -> Generator[ToolInvokeMessage, None, None]:
         """
-        轮询火山方舟任务状态
+        轮询火山方舟任务状态 (Ark API)
         
-        状态说明：
-        - not_start/submitted: 任务等待中
-        - running: 任务运行中
-        - done: 任务成功
-        - failed: 任务失败
+        状态: running, succeeded, failed, canceled
         """
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -386,62 +361,52 @@ class TextToVideoTool(Tool):
         
         for attempt in range(self.MAX_POLL_ATTEMPTS):
             try:
-                # 火山方舟视觉智能平台查询接口
-                payload = {
-                    "req_key": "jimeng_vgfm_t2v_l20",
-                    "task_id": task_id
-                }
-                
-                response = requests.post(
-                    f"{self.VOLCENGINE_API_BASE}/cv/v1/video_gen_async/query",
+                # 查询任务状态 - GET 请求
+                response = requests.get(
+                    f"{self.VOLCENGINE_API_BASE}/contents/generations/tasks/{task_id}",
                     headers=headers,
-                    json=payload,
                     timeout=30
                 )
                 
-                result = response.json()
-                
-                # 检查API响应状态
-                if result.get("code") != 10000:
-                    error_msg = result.get("message", "查询失败")
-                    yield self.create_text_message(f"❌ 查询失败: {error_msg}")
+                if response.status_code != 200:
+                    yield self.create_text_message(f"❌ 查询失败: {response.status_code} - {response.text}")
                     yield self.create_json_message({
                         "success": False,
                         "provider": "volcengine",
                         "model": model,
                         "task_id": task_id,
-                        "status": "Failed",
-                        "error_message": error_msg
+                        "status": "failed",
+                        "error_message": response.text
                     })
                     return
                 
-                data = result.get("data", {})
-                status = data.get("status", "unknown")
+                result = response.json()
+                status = result.get("status", "unknown")
                 
-                if status == "done":
-                    # 获取视频URL - 火山方舟返回格式
-                    video_list = data.get("video_list", [])
-                    video_url = video_list[0] if video_list else ""
-                    cover_url = data.get("cover_url", "")
+                if status == "succeeded":
+                    # 获取视频URL
+                    video_url = result.get("content", {}).get("video_url", "")
                     
                     yield self.create_text_message(
                         f"🎉 **视频生成完成！**\n\n"
-                        f"📹 视频: {video_url}\n"
-                        f"🖼️ 封面: {cover_url if cover_url else '无'}"
+                        f"📹 视频: {video_url}"
                     )
+                    # 显示视频
+                    if video_url:
+                        yield self.create_image_message(video_url)
+                    yield self.create_text_message("⚠️ 视频链接有效期24小时，请及时下载保存")
                     yield self.create_json_message({
                         "success": True,
                         "provider": "volcengine",
                         "model": model,
                         "task_id": task_id,
-                        "status": "done",
-                        "video_url": video_url,
-                        "cover_url": cover_url
+                        "status": "succeeded",
+                        "video_url": video_url
                     })
                     return
                     
                 elif status == "failed":
-                    error_msg = data.get("err_msg", data.get("error_message", "未知错误"))
+                    error_msg = result.get("error", {}).get("message", "未知错误")
                     yield self.create_text_message(f"❌ 视频生成失败: {error_msg}")
                     yield self.create_json_message({
                         "success": False,
@@ -452,37 +417,40 @@ class TextToVideoTool(Tool):
                         "error_message": error_msg
                     })
                     return
+                
+                elif status == "canceled":
+                    yield self.create_text_message("❌ 任务已被取消")
+                    yield self.create_json_message({
+                        "success": False,
+                        "provider": "volcengine",
+                        "model": model,
+                        "task_id": task_id,
+                        "status": "canceled",
+                        "error_message": "任务已被取消"
+                    })
+                    return
                     
                 else:
                     # 每30秒输出一次进度
                     if attempt % 6 == 0:
                         elapsed = attempt * self.POLL_INTERVAL
-                        status_text = {
-                            "not_start": "等待中",
-                            "submitted": "已提交",
-                            "running": "生成中"
-                        }.get(status, status)
                         yield self.create_text_message(
-                            f"⏳ 正在生成... {status_text} ({elapsed}秒)"
+                            f"⏳ 正在生成... ({elapsed}秒)"
                         )
                     time.sleep(self.POLL_INTERVAL)
                     
             except Exception as e:
-                # 网络错误时继续重试
                 time.sleep(self.POLL_INTERVAL)
         
         # 超时
         yield self.create_text_message(
-            f"⏰ 任务超时（等待超过{self.MAX_POLL_ATTEMPTS * self.POLL_INTERVAL}秒）\n"
-            f"🔖 任务ID: `{task_id}`\n"
-            f"请使用任务查询工具手动查询结果"
+            f"⏰ 任务超时\n🔖 任务ID: `{task_id}`\n请使用任务查询工具手动查询结果"
         )
         yield self.create_json_message({
             "success": False,
             "provider": "volcengine",
             "model": model,
             "task_id": task_id,
-            "status": "TIMEOUT",
+            "status": "timeout",
             "error_message": "任务超时"
         })
-
