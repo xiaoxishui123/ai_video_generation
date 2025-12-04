@@ -79,5 +79,5 @@ output:
 
 extra:
   python:
-    source: query_task.py
+    source: tools/query_task.py
 

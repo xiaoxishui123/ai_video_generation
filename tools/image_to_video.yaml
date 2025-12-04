@@ -161,5 +161,5 @@ output:
 
 extra:
   python:
-    source: image_to_video.py
+    source: tools/image_to_video.py
 

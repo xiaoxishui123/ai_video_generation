@@ -174,5 +174,5 @@ output:
 
 extra:
   python:
-    source: text_to_video.py
+    source: tools/text_to_video.py
 
