@@ -9,6 +9,7 @@
 """
 
 import time
+import base64
 import requests
 from typing import Any, Generator
 from dify_plugin import Tool
@@ -40,6 +41,41 @@ class ImageToVideoTool(Tool):
     # 轮询配置
     POLL_INTERVAL = 5
     MAX_POLL_ATTEMPTS = 120
+
+    def _convert_image_to_base64(self, image_url: str) -> tuple[str, str]:
+        """下载图片并转换为Base64格式"""
+        try:
+            response = requests.get(image_url, timeout=30, stream=True)
+            response.raise_for_status()
+            content_type = response.headers.get('Content-Type', 'image/jpeg')
+            if not content_type.startswith('image/'):
+                content_type = 'image/jpeg'
+            image_format = content_type.split('/')[-1].lower()
+            format_map = {'jpg': 'jpeg', 'png': 'png', 'webp': 'webp', 'gif': 'gif'}
+            image_format = format_map.get(image_format, 'jpeg')
+            base64_data = base64.b64encode(response.content).decode('utf-8')
+            return f"data:image/{image_format};base64,{base64_data}", ""
+        except Exception as e:
+            return "", f"图片处理失败: {str(e)}"
+
+    def _is_public_accessible_url(self, url: str) -> bool:
+        """判断URL是否可能是公网可访问的"""
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(url)
+            host = parsed.hostname or ""
+            private_patterns = ['localhost', '127.0.0.1', '10.', '172.16.', '172.17.', '172.18.', 
+                '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', 
+                '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', '192.168.']
+            for pattern in private_patterns:
+                if host.startswith(pattern) or host == pattern.rstrip('.'):
+                    return False
+            port = parsed.port
+            if port and port not in [80, 443]:
+                return False
+            return True
+        except Exception:
+            return False
 
     def _invoke(
         self, tool_parameters: dict[str, Any]
@@ -241,13 +277,24 @@ class ImageToVideoTool(Tool):
         
         # 构建带参数的 prompt
         full_prompt = f"{prompt} --duration {duration}"
-        
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
+        
+        # 检查图片URL是否公网可访问，如果不是则转换为Base64
+        final_image_url = image_url
+        if not self._is_public_accessible_url(image_url):
+            yield self.create_text_message(f"🔄 检测到内网图片地址，正在转换为Base64格式...")
+            base64_url, error = self._convert_image_to_base64(image_url)
+            if error:
+                yield self.create_text_message(f"❌ 图片转换失败: {error}")
+                return
+            final_image_url = base64_url
+            yield self.create_text_message(f"✅ 图片转换成功")
+        
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
-            f"🖼️ 图片: {image_url[:60]}...\n"
+            f"🖼️ 图片: {'Base64' if final_image_url.startswith('data:') else image_url[:60]}\n"
             f"⏱️ 时长: {duration}秒\n"
             f"💬 描述: {prompt[:50]}..."
         )
@@ -263,7 +310,7 @@ class ImageToVideoTool(Tool):
             "content": [
                 {
                     "type": "image_url",
-                    "image_url": {"url": image_url}
+                    "image_url": {"url": final_image_url}
                 },
                 {
                     "type": "text",
