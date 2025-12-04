@@ -189,9 +189,12 @@ class TextToVideoTool(Tool):
                     video_url = output.get("video_url", "")
                     cover_url = output.get("cover_url", "")
                     
+                    # 方案2：视频URL放在最前面，便于工作流提取
                     yield self.create_text_message(
-                        f"🎉 **视频生成完成！**\n\n"
-                        f"📹 视频: {video_url}\n"
+                        f"{video_url}\n\n"
+                        f"---\n"
+                        f"🎉 **视频生成完成！**\n"
+                        f"📹 视频链接已在上方（可直接复制使用）\n"
                         f"🖼️ 封面: {cover_url}"
                     )
                     yield self.create_json_message({
@@ -387,14 +390,17 @@ class TextToVideoTool(Tool):
                     # 获取视频URL
                     video_url = result.get("content", {}).get("video_url", "")
                     
+                    # 方案2：视频URL放在最前面，便于工作流提取
                     yield self.create_text_message(
-                        f"🎉 **视频生成完成！**\n\n"
-                        f"📹 视频: {video_url}"
+                        f"{video_url}\n\n"
+                        f"---\n"
+                        f"🎉 **视频生成完成！**\n"
+                        f"📹 视频链接已在上方（可直接复制使用）\n"
+                        f"⚠️ 视频链接有效期24小时，请及时下载保存"
                     )
-                    # 显示视频
+                    # 显示视频预览
                     if video_url:
                         yield self.create_image_message(video_url)
-                    yield self.create_text_message("⚠️ 视频链接有效期24小时，请及时下载保存")
                     yield self.create_json_message({
                         "success": True,
                         "provider": "volcengine",
