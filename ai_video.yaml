@@ -55,4 +55,4 @@ tools:
 
 extra:
   python:
-    source: provider/ai_video.py
+    source: _provider/ai_video.py
