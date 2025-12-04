@@ -1,165 +1,109 @@
-# 图片生成视频工具配置
-# 支持阿里云百炼和火山方舟双平台
-
+description:
+  human:
+    zh_Hans: 根据图片和文本描述生成视频，支持阿里云百炼(通义万相)和火山方舟(豆包Seedance)模型
+    en_US: Generate video from image and text description, supporting Aliyun Wanxiang and Volcengine Seedance models
+  llm: Generate video from image and text description using AI models. Supports Aliyun Bailian and Volcengine Ark platforms.
+extra:
+  python:
+    source: tools/image_to_video.py
 identity:
-  name: image_to_video
   author: xiaoxishui
   label:
     zh_Hans: 图片生成视频
     en_US: Image to Video
-  description:
-    zh_Hans: 根据图片和文本描述生成视频，支持阿里云百炼(通义万相)和火山方舟(豆包Seedance)模型
-    en_US: Generate video from image and text description, supporting Aliyun Wanxiang and Volcengine Seedance models
-
-# 工具参数定义
+  name: image_to_video
 parameters:
-  # 平台选择
-  - name: provider
-    type: select
-    required: true
+- name: provider
+  type: select
+  required: true
+  label:
+    zh_Hans: 平台
+    en_US: Platform
+  human_description:
+    zh_Hans: 选择视频生成平台
+    en_US: Select video generation platform
+  form: form
+  default: volcengine
+  options:
+  - value: aliyun
     label:
-      zh_Hans: 平台
-      en_US: Platform
-    human_description:
-      zh_Hans: 选择视频生成平台
-      en_US: Select video generation platform
-    options:
-      - value: aliyun
-        label:
-          zh_Hans: 阿里云百炼
-          en_US: Aliyun Bailian
-      - value: volcengine
-        label:
-          zh_Hans: 火山方舟
-          en_US: Volcengine Ark
-    default: volcengine
-    form: form
-
-  # 模型选择
-  - name: model
-    type: select
-    required: true
+      zh_Hans: 阿里云百炼
+      en_US: Aliyun Bailian
+  - value: volcengine
     label:
-      zh_Hans: 模型
-      en_US: Model
-    human_description:
-      zh_Hans: 选择图生视频模型
-      en_US: Select image-to-video model
-    options:
-      # 阿里云模型
-      - value: wan2.5-i2v-preview
-        label:
-          zh_Hans: "[阿里云] 通义万相 I2V"
-          en_US: "[Aliyun] Wanxiang I2V"
-      # 火山方舟模型 - 使用最新版本模型ID
-      - value: doubao-seaweed-241128
-        label:
-          zh_Hans: "[火山] Seaweed I2V"
-          en_US: "[Volcengine] Seaweed I2V"
-    default: doubao-seaweed-241128
-    form: form
-
-  # 输入图片URL
-  - name: image_url
-    type: string
-    required: true
+      zh_Hans: 火山方舟
+      en_US: Volcengine Ark
+- name: model
+  type: select
+  required: true
+  label:
+    zh_Hans: 模型
+    en_US: Model
+  human_description:
+    zh_Hans: 选择图生视频模型
+    en_US: Select image-to-video model
+  form: form
+  default: doubao-seaweed-241128
+  options:
+  - value: wan2.5-i2v-preview
     label:
-      zh_Hans: 图片URL
-      en_US: Image URL
-    human_description:
-      zh_Hans: 输入图片的URL地址，支持JPG/PNG格式
-      en_US: URL of the input image, supports JPG/PNG format
-    llm_description: 用于生成视频的源图片URL地址
-    form: llm
-    placeholder:
-      zh_Hans: https://example.com/image.jpg
-      en_US: https://example.com/image.jpg
-
-  # 视频描述
-  - name: prompt
-    type: string
-    required: false
+      zh_Hans: "[阿里云] 通义万相 I2V"
+      en_US: "[Aliyun] Wanxiang I2V"
+  - value: doubao-seaweed-241128
     label:
-      zh_Hans: 动作描述
-      en_US: Motion Description
-    human_description:
-      zh_Hans: 描述图片中的元素如何运动（可选）
-      en_US: Describe how elements in the image should move (optional)
-    llm_description: 描述图片中元素的运动方式，如"让图片中的人物微笑并挥手"
-    form: llm
-    placeholder:
-      zh_Hans: 让图片动起来
-      en_US: Make the image come alive
-    default: 让图片动起来
-
-  # 视频时长
-  - name: duration
-    type: select
-    required: false
+      zh_Hans: "[火山] Seaweed I2V"
+      en_US: "[Volcengine] Seaweed I2V"
+- name: image_url
+  type: string
+  required: true
+  label:
+    zh_Hans: 图片URL
+    en_US: Image URL
+  human_description:
+    zh_Hans: 输入图片的URL地址，支持JPG/PNG格式
+    en_US: URL of the input image, supports JPG/PNG format
+  llm_description: 用于生成视频的源图片URL地址
+  form: llm
+- name: prompt
+  type: string
+  required: false
+  label:
+    zh_Hans: 动作描述
+    en_US: Motion Description
+  human_description:
+    zh_Hans: 描述图片中的元素如何运动（可选）
+    en_US: Describe how elements in the image should move (optional)
+  llm_description: 描述图片中元素的运动方式，如"让图片中的人物微笑并挥手"
+  form: llm
+  default: 让图片动起来
+- name: duration
+  type: select
+  required: false
+  label:
+    zh_Hans: 视频时长
+    en_US: Video Duration
+  human_description:
+    zh_Hans: 生成视频的时长（秒）
+    en_US: Duration of the generated video (seconds)
+  form: form
+  default: "5"
+  options:
+  - value: "5"
     label:
-      zh_Hans: 视频时长
-      en_US: Video Duration
-    human_description:
-      zh_Hans: 生成视频的时长（秒）
-      en_US: Duration of the generated video (seconds)
-    options:
-      - value: "5"
-        label:
-          zh_Hans: 5秒
-          en_US: 5 seconds
-      - value: "10"
-        label:
-          zh_Hans: 10秒
-          en_US: 10 seconds
-    default: "5"
-    form: form
-
-  # 是否等待完成
-  - name: wait_for_completion
-    type: boolean
-    required: false
+      zh_Hans: 5秒
+      en_US: 5 seconds
+  - value: "10"
     label:
-      zh_Hans: 等待完成
-      en_US: Wait for Completion
-    human_description:
-      zh_Hans: 是否等待视频生成完成后返回结果，关闭则只返回任务ID
-      en_US: Wait for video generation to complete, disable to only return task ID
-    default: true
-    form: form
-
-# 输出定义
-output:
-  type: object
-  properties:
-    success:
-      type: boolean
-      description: 是否成功
-    provider:
-      type: string
-      description: 使用的平台
-    model:
-      type: string
-      description: 使用的模型
-    task_id:
-      type: string
-      description: 任务ID
-    status:
-      type: string
-      description: 任务状态
-    video_url:
-      type: string
-      description: 视频URL
-    cover_url:
-      type: string
-      description: 封面图URL
-    duration:
-      type: number
-      description: 视频时长
-    error_message:
-      type: string
-      description: 错误信息
-
-extra:
-  python:
-    source: tools/image_to_video.py
-
+      zh_Hans: 10秒
+      en_US: 10 seconds
+- name: wait_for_completion
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 等待完成
+    en_US: Wait for Completion
+  human_description:
+    zh_Hans: 是否等待视频生成完成后返回结果，关闭则只返回任务ID
+    en_US: Wait for video generation to complete, disable to only return task ID
+  form: form
+  default: true
