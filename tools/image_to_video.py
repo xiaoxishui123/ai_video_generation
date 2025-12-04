@@ -96,20 +96,48 @@ class ImageToVideoTool(Tool):
         except Exception:
             return False
 
+    def _extract_image_url(self, image_param: Any) -> tuple[str, str]:
+        """从参数中提取图片URL，返回 (url, error)"""
+        if not image_param:
+            return "", "图片参数为空"
+        
+        # 如果是字符串，直接作为 URL
+        if isinstance(image_param, str):
+            url = image_param.strip()
+            if url.startswith(("http://", "https://")):
+                return url, ""
+            return "", "图片URL格式无效"
+        
+        # 如果是 Dify 文件对象（字典）
+        if isinstance(image_param, dict):
+            # 优先使用 url 字段
+            url = image_param.get("url", "")
+            if url:
+                return url, ""
+            # 其次使用 remote_url 字段
+            url = image_param.get("remote_url", "")
+            if url:
+                return url, ""
+            return "", "文件对象中未找到有效的URL"
+        
+        return "", f"不支持的图片参数类型: {type(image_param)}"
+
     def _invoke(
         self, tool_parameters: dict[str, Any]
     ) -> Generator[ToolInvokeMessage, None, None]:
         """执行工具调用"""
         provider = tool_parameters.get("provider", "aliyun")
-        image_url = tool_parameters.get("image_url", "").strip()
         
-        if not image_url:
-            yield self.create_text_message("❌ 错误：图片URL不能为空")
+        # 兼容 image (file类型) 和 image_url (string类型)
+        image_param = tool_parameters.get("image") or tool_parameters.get("image_url")
+        image_url, error = self._extract_image_url(image_param)
+        
+        if error:
+            yield self.create_text_message(f"❌ 错误：{error}")
             return
         
-        if not image_url.startswith(("http://", "https://")):
-            yield self.create_text_message("❌ 错误：图片URL格式无效")
-            return
+        # 将提取的 URL 放回参数中供后续使用
+        tool_parameters["image_url"] = image_url
         
         if provider == "aliyun":
             yield from self._invoke_aliyun(tool_parameters)

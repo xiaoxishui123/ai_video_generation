@@ -53,16 +53,16 @@ parameters:
     label:
       zh_Hans: "[火山] Seaweed I2V"
       en_US: "[Volcengine] Seaweed I2V"
-- name: image_url
-  type: string
+- name: image
+  type: file
   required: true
   label:
-    zh_Hans: 图片URL
-    en_US: Image URL
+    zh_Hans: 图片
+    en_US: Image
   human_description:
-    zh_Hans: 输入图片的URL地址，支持JPG/PNG格式
-    en_US: URL of the input image, supports JPG/PNG format
-  llm_description: 用于生成视频的源图片URL地址
+    zh_Hans: 用于生成视频的源图片，支持JPG/PNG格式
+    en_US: Source image for video generation, supports JPG/PNG format
+  llm_description: 用于生成视频的源图片文件
   form: llm
 - name: prompt
   type: string
