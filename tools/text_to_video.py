@@ -43,9 +43,9 @@ class TextToVideoTool(Tool):
         "1:1": "720*720",
     }
 
-    # 轮询配置
+    # 轮询配置 - Dify 插件有 10 分钟硬性超时，设置 8 分钟以留出余量
     POLL_INTERVAL = 5  # 轮询间隔（秒）
-    MAX_POLL_ATTEMPTS = 120  # 最大轮询次数（10分钟）
+    MAX_POLL_ATTEMPTS = 96  # 96 * 5 = 480秒 = 8分钟
 
     def _invoke(
         self, tool_parameters: dict[str, Any]
@@ -233,17 +233,21 @@ class TextToVideoTool(Tool):
             except Exception as e:
                 time.sleep(self.POLL_INTERVAL)
         
-        # 超时
+        # 超时 - 任务仍在进行中
         yield self.create_text_message(
-            f"⏰ 任务超时\n🔖 任务ID: `{task_id}`\n请使用任务查询工具手动查询结果"
+            f"⏰ 视频生成仍在进行中，已超过等待时间\n"
+            f"🔖 任务ID: `{task_id}`\n\n"
+            f"💡 请使用【查询任务状态】工具，输入以下信息查询结果：\n"
+            f"   - 平台: aliyun\n"
+            f"   - 任务ID: {task_id}"
         )
         yield self.create_json_message({
-            "success": False,
+            "success": True,  # 改为 True，因为任务仍在进行中
             "provider": "aliyun",
             "model": model,
             "task_id": task_id,
-            "status": "TIMEOUT",
-            "error_message": "任务超时"
+            "status": "RUNNING",
+            "error_message": "等待超时，任务仍在进行中，请使用query_task查询结果"
         })
 
     # ========== 火山方舟实现 (使用 Ark API) ==========
@@ -448,15 +452,19 @@ class TextToVideoTool(Tool):
             except Exception as e:
                 time.sleep(self.POLL_INTERVAL)
         
-        # 超时
+        # 超时 - 任务仍在进行中
         yield self.create_text_message(
-            f"⏰ 任务超时\n🔖 任务ID: `{task_id}`\n请使用任务查询工具手动查询结果"
+            f"⏰ 视频生成仍在进行中，已超过等待时间\n"
+            f"🔖 任务ID: `{task_id}`\n\n"
+            f"💡 请使用【查询任务状态】工具，输入以下信息查询结果：\n"
+            f"   - 平台: volcengine\n"
+            f"   - 任务ID: {task_id}"
         )
         yield self.create_json_message({
-            "success": False,
+            "success": True,  # 改为 True，因为任务仍在进行中
             "provider": "volcengine",
             "model": model,
             "task_id": task_id,
-            "status": "timeout",
-            "error_message": "任务超时"
+            "status": "running",
+            "error_message": "等待超时，任务仍在进行中，请使用query_task查询结果"
         })

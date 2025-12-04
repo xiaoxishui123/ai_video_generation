@@ -38,9 +38,9 @@ class ImageToVideoTool(Tool):
         "1:1": "720*720",
     }
 
-    # 轮询配置
+    # 轮询配置 - Dify 插件有 10 分钟硬性超时，设置 8 分钟以留出余量
     POLL_INTERVAL = 5
-    MAX_POLL_ATTEMPTS = 120
+    MAX_POLL_ATTEMPTS = 96  # 96 * 5 = 480秒 = 8分钟
 
     def _convert_image_to_base64(self, image_url: str) -> tuple[str, str]:
         """下载图片并转换为Base64格式"""
@@ -59,20 +59,34 @@ class ImageToVideoTool(Tool):
             return "", f"图片处理失败: {str(e)}"
 
     def _is_public_accessible_url(self, url: str) -> bool:
-        """判断URL是否可能是公网可访问的"""
+        """判断URL是否可能是公网可访问的
+        
+        改进：公网 IP 即使用非标准端口(如 8080)也可能是公网可访问的
+        只有真正的私有网络地址才需要转换为 Base64
+        """
         from urllib.parse import urlparse
         try:
             parsed = urlparse(url)
             host = parsed.hostname or ""
-            private_patterns = ['localhost', '127.0.0.1', '10.', '172.16.', '172.17.', '172.18.', 
-                '172.19.', '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', 
-                '172.26.', '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', '192.168.']
+            
+            # 私有网络地址列表（这些才需要转 Base64）
+            private_patterns = [
+                'localhost', '127.0.0.1', '127.',  # 本地回环
+                '10.',                               # 10.0.0.0/8
+                '172.16.', '172.17.', '172.18.', '172.19.',  # 172.16.0.0/12
+                '172.20.', '172.21.', '172.22.', '172.23.', 
+                '172.24.', '172.25.', '172.26.', '172.27.', 
+                '172.28.', '172.29.', '172.30.', '172.31.', 
+                '192.168.',                          # 192.168.0.0/16
+                '169.254.',                          # 链路本地
+            ]
+            
             for pattern in private_patterns:
                 if host.startswith(pattern) or host == pattern.rstrip('.'):
                     return False
-            port = parsed.port
-            if port and port not in [80, 443]:
-                return False
+            
+            # 公网 IP 或域名，即使端口不是 80/443 也认为是公网可访问的
+            # 火山引擎应该能够访问公网上的任意端口
             return True
         except Exception:
             return False
@@ -249,14 +263,20 @@ class ImageToVideoTool(Tool):
             except Exception:
                 time.sleep(self.POLL_INTERVAL)
         
-        yield self.create_text_message(f"⏰ 任务超时\n🔖 任务ID: `{task_id}`")
+        yield self.create_text_message(
+            f"⏰ 视频生成仍在进行中，已超过等待时间\n"
+            f"🔖 任务ID: `{task_id}`\n\n"
+            f"💡 请使用【查询任务状态】工具，输入以下信息查询结果：\n"
+            f"   - 平台: aliyun\n"
+            f"   - 任务ID: {task_id}"
+        )
         yield self.create_json_message({
-            "success": False,
+            "success": True,  # 改为 True，因为任务仍在进行中
             "provider": "aliyun",
             "model": model,
             "task_id": task_id,
-            "status": "TIMEOUT",
-            "error_message": "任务超时"
+            "status": "RUNNING",
+            "error_message": "等待超时，任务仍在进行中，请使用query_task查询结果"
         })
 
     # ========== 火山方舟实现 (Ark API) ==========
@@ -384,7 +404,14 @@ class ImageToVideoTool(Tool):
                 result = response.json()
                 status = result.get("status", "unknown")
                 
-                if status == "succeeded":
+                # 调试日志：输出原始响应
+                if attempt == 0:
+                    yield self.create_text_message(f"📋 首次轮询响应: status={status}, keys={list(result.keys())}")
+                
+                # 状态统一转小写，兼容不同格式
+                status_lower = status.lower() if isinstance(status, str) else "unknown"
+                
+                if status_lower == "succeeded" or status_lower == "done":
                     video_url = result.get("content", {}).get("video_url", "")
                     
                     # 方案2：视频URL放在最前面，便于工作流提取
@@ -408,7 +435,7 @@ class ImageToVideoTool(Tool):
                     })
                     return
                     
-                elif status == "failed":
+                elif status_lower == "failed":
                     error_msg = result.get("error", {}).get("message", "未知错误")
                     yield self.create_text_message(f"❌ 视频生成失败: {error_msg}")
                     yield self.create_json_message({
@@ -421,7 +448,7 @@ class ImageToVideoTool(Tool):
                     })
                     return
                 
-                elif status == "canceled":
+                elif status_lower == "canceled" or status_lower == "cancelled":
                     yield self.create_text_message("❌ 任务已被取消")
                     return
                     
@@ -434,12 +461,18 @@ class ImageToVideoTool(Tool):
             except Exception:
                 time.sleep(self.POLL_INTERVAL)
         
-        yield self.create_text_message(f"⏰ 任务超时\n🔖 任务ID: `{task_id}`")
+        yield self.create_text_message(
+            f"⏰ 视频生成仍在进行中，已超过等待时间\n"
+            f"🔖 任务ID: `{task_id}`\n\n"
+            f"💡 请使用【查询任务状态】工具，输入以下信息查询结果：\n"
+            f"   - 平台: volcengine\n"
+            f"   - 任务ID: {task_id}"
+        )
         yield self.create_json_message({
-            "success": False,
+            "success": True,  # 改为 True，因为任务仍在进行中
             "provider": "volcengine",
             "model": model,
             "task_id": task_id,
-            "status": "timeout",
-            "error_message": "任务超时"
+            "status": "running",
+            "error_message": "等待超时，任务仍在进行中，请使用query_task查询结果"
         })
