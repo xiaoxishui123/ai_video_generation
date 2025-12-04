@@ -285,10 +285,36 @@ class ImageToVideoTool(Tool):
         })
 
     # ========== 火山方舟实现 (Ark API) ==========
+    def _submit_volcengine_task(
+        self, api_key: str, model: str, image_url: str, full_prompt: str
+    ) -> tuple[dict, str]:
+        """提交火山引擎任务，返回 (result, error)"""
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "content": [
+                {"type": "image_url", "image_url": {"url": image_url}},
+                {"type": "text", "text": full_prompt}
+            ]
+        }
+        try:
+            response = requests.post(
+                f"{self.VOLCENGINE_API_BASE}/contents/generations/tasks",
+                headers=headers, json=payload, timeout=30
+            )
+            if response.status_code != 200:
+                return {}, f"{response.status_code} - {response.text}"
+            return response.json(), ""
+        except Exception as e:
+            return {}, str(e)
+
     def _invoke_volcengine(
         self, params: dict
     ) -> Generator[ToolInvokeMessage, None, None]:
-        """调用火山方舟 Ark API (图生视频)"""
+        """调用火山方舟 Ark API (图生视频) - 智能重试"""
         api_key = self.runtime.credentials.get("volcengine_api_key", "")
         if not api_key:
             yield self.create_text_message("❌ 错误：请配置火山方舟 API Key")
@@ -300,90 +326,71 @@ class ImageToVideoTool(Tool):
         duration = params.get("duration", "5")
         wait_for_completion = params.get("wait_for_completion", True)
         
-        # 构建带参数的 prompt
         full_prompt = f"{prompt} --duration {duration}"
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         
-        # 检查图片URL是否公网可访问，如果不是则转换为Base64
+        # 智能策略：判断是否需要预先转换 Base64
+        need_base64 = not self._is_public_accessible_url(image_url)
         final_image_url = image_url
-        if not self._is_public_accessible_url(image_url):
+        used_base64 = False
+        
+        if need_base64:
+            # 明确的内网地址，直接转 Base64
             yield self.create_text_message(f"🔄 检测到内网图片地址，正在转换为Base64格式...")
             base64_url, error = self._convert_image_to_base64(image_url)
             if error:
                 yield self.create_text_message(f"❌ 图片转换失败: {error}")
                 return
             final_image_url = base64_url
+            used_base64 = True
             yield self.create_text_message(f"✅ 图片转换成功")
         
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
-            f"🖼️ 图片: {'Base64' if final_image_url.startswith('data:') else image_url[:60]}\n"
+            f"🖼️ 图片: {'Base64' if used_base64 else image_url[:60]}\n"
             f"⏱️ 时长: {duration}秒\n"
             f"💬 描述: {prompt[:50]}..."
         )
         
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
+        # 第一次尝试提交
+        result, error = self._submit_volcengine_task(api_key, model, final_image_url, full_prompt)
         
-        # Ark API 格式 - 图生视频
-        payload = {
-            "model": model,
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {"url": final_image_url}
-                },
-                {
-                    "type": "text",
-                    "text": full_prompt
-                }
-            ]
-        }
+        # 智能重试：如果是 URL 方式且返回 "image not found" 错误，自动转 Base64 重试
+        if error and not used_base64 and "image" in error.lower() and "not found" in error.lower():
+            yield self.create_text_message(f"⚠️ 火山引擎无法访问图片URL，自动转换为Base64重试...")
+            base64_url, convert_error = self._convert_image_to_base64(image_url)
+            if convert_error:
+                yield self.create_text_message(f"❌ 图片转换失败: {convert_error}")
+                yield self.create_json_message({"success": False, "provider": "volcengine", "error_message": convert_error})
+                return
+            yield self.create_text_message(f"✅ 图片转换成功，重新提交...")
+            result, error = self._submit_volcengine_task(api_key, model, base64_url, full_prompt)
+            used_base64 = True
         
-        try:
-            response = requests.post(
-                f"{self.VOLCENGINE_API_BASE}/contents/generations/tasks",
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
-            
-            if response.status_code != 200:
-                yield self.create_text_message(f"❌ 提交失败: {response.status_code} - {response.text}")
-                yield self.create_json_message({
-                    "success": False,
-                    "provider": "volcengine",
-                    "error_message": response.text
-                })
-                return
-            
-            result = response.json()
-            task_id = result.get("id")
-            if not task_id:
-                yield self.create_text_message(f"❌ 提交失败: 未获取到任务ID")
-                return
-            
-            yield self.create_text_message(f"✅ 任务已提交\n🔖 任务ID: `{task_id}`")
-            
-            if wait_for_completion:
-                yield from self._poll_volcengine(api_key, task_id, model)
-            else:
-                yield self.create_json_message({
-                    "success": True,
-                    "provider": "volcengine",
-                    "model": model,
-                    "task_id": task_id,
-                    "status": "running"
-                })
-                
-        except requests.Timeout:
-            yield self.create_text_message("❌ 错误: 请求超时")
-        except Exception as e:
-            yield self.create_text_message(f"❌ 错误: {str(e)}")
+        if error:
+            yield self.create_text_message(f"❌ 提交失败: {error}")
+            yield self.create_json_message({"success": False, "provider": "volcengine", "error_message": error})
+            return
+        
+        task_id = result.get("id")
+        if not task_id:
+            yield self.create_text_message(f"❌ 提交失败: 未获取到任务ID")
+            return
+        
+        yield self.create_text_message(f"✅ 任务已提交\n🔖 任务ID: `{task_id}`")
+        
+        if wait_for_completion:
+            yield from self._poll_volcengine(api_key, task_id, model)
+        else:
+            yield self.create_json_message({
+                "success": True,
+                "provider": "volcengine",
+                "model": model,
+                "task_id": task_id,
+                "status": "running"
+            })
 
     def _poll_volcengine(
         self, api_key: str, task_id: str, model: str
