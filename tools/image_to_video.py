@@ -59,17 +59,19 @@ class ImageToVideoTool(Tool):
             return "", f"图片处理失败: {str(e)}"
 
     def _is_public_accessible_url(self, url: str) -> bool:
-        """判断URL是否可能是公网可访问的
+        """判断URL是否可能被火山引擎公网访问
         
-        改进：公网 IP 即使用非标准端口(如 8080)也可能是公网可访问的
-        只有真正的私有网络地址才需要转换为 Base64
+        注意：Dify 生成的图片 URL 通常带有签名参数，且使用非标准端口(如 8080)
+        火山引擎服务器可能无法访问这些 URL，因此需要转换为 Base64
+        
+        只有标准端口(80/443)的公网 URL 才认为是可直接访问的
         """
         from urllib.parse import urlparse
         try:
             parsed = urlparse(url)
             host = parsed.hostname or ""
             
-            # 私有网络地址列表（这些才需要转 Base64）
+            # 私有网络地址（一定需要转 Base64）
             private_patterns = [
                 'localhost', '127.0.0.1', '127.',  # 本地回环
                 '10.',                               # 10.0.0.0/8
@@ -85,8 +87,11 @@ class ImageToVideoTool(Tool):
                 if host.startswith(pattern) or host == pattern.rstrip('.'):
                     return False
             
-            # 公网 IP 或域名，即使端口不是 80/443 也认为是公网可访问的
-            # 火山引擎应该能够访问公网上的任意端口
+            # 非标准端口也需要转 Base64（火山引擎可能无法访问带签名的 Dify URL）
+            port = parsed.port
+            if port and port not in [80, 443]:
+                return False
+            
             return True
         except Exception:
             return False
