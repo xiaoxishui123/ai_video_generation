@@ -30,7 +30,7 @@ class ImageToVideoTool(Tool):
         "doubao-seaweed-241128": {"name": "Seaweed I2V"},
     }
 
-    # 阿里云分辨率映射
+    # 阿里云分辨率映射 - 宽高比 -> size格式(宽*高)
     ALIYUN_SIZE_MAP = {
         "16:9": "1280*720",
         "9:16": "720*1280",

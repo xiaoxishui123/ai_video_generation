@@ -36,7 +36,7 @@ class TextToVideoTool(Tool):
         "doubao-seedance-1-0-lite-t2v-250428": {"name": "Seedance Lite T2V"},
     }
     
-    # 阿里云分辨率映射 - 注意：宽*高 格式
+    # 阿里云分辨率映射 - 宽高比 -> size格式(宽*高)
     ALIYUN_SIZE_MAP = {
         "16:9": "1280*720",
         "9:16": "720*1280",
@@ -90,7 +90,7 @@ class TextToVideoTool(Tool):
         aspect_ratio = params.get("aspect_ratio", "16:9")
         wait_for_completion = params.get("wait_for_completion", True)
         
-        # 宽高比映射到分辨率
+        # 宽高比映射到size (宽*高格式)
         size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
         
         model_name = self.ALIYUN_MODELS.get(model, {}).get("name", model)
@@ -118,9 +118,9 @@ class TextToVideoTool(Tool):
         }
         
         try:
-            # 提交任务
+            # 提交任务 - 使用 video-synthesis 端点
             response = requests.post(
-                f"{self.ALIYUN_API_BASE}/services/aigc/video-generation/generation",
+                f"{self.ALIYUN_API_BASE}/services/aigc/video-generation/video-synthesis",
                 headers=headers,
                 json=payload,
                 timeout=30
