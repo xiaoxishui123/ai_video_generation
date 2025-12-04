@@ -7,9 +7,6 @@ identity:
   description:
     zh_Hans: AI视频生成工具，支持阿里云百炼和火山方舟平台的文生视频(T2V)和图生视频(I2V)功能
     en_US: AI Video Generation tool supporting Aliyun Bailian and Volcengine platforms for T2V and I2V
-  icon: _assets/icon.svg
-  tags:
-    - videos
 
 credentials_for_provider:
   aliyun_api_key:
