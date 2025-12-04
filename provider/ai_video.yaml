@@ -1,6 +1,7 @@
 identity:
   name: ai_video
   author: xiaoxishui
+  icon: icon.svg
   label:
     zh_Hans: AI视频生成
     en_US: AI Video Generation
