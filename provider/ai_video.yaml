@@ -48,6 +48,19 @@ credentials_for_provider:
       zh_Hans: 在火山方舟 Ark 控制台创建推理接入点后可获取
       en_US: Create an inference endpoint in Volcengine Ark console to obtain this ID
 
+  dify_internal_url:
+    type: text-input
+    required: false
+    label:
+      zh_Hans: Dify 内部访问地址
+      en_US: Dify Internal URL
+    placeholder:
+      zh_Hans: 例如 http://api:5001 或 http://host.docker.internal:5001
+      en_US: e.g. http://api:5001 or http://host.docker.internal:5001
+    help:
+      zh_Hans: 插件访问 Dify 文件服务的内部地址。如果图片转换失败提示404错误，请配置此项。常用值：Docker Compose 部署用 http://api:5001，Docker Desktop 用 http://host.docker.internal:5001
+      en_US: Internal URL for plugin to access Dify file service. Configure this if image conversion fails with 404 error.
+
 tools:
   - tools/text_to_video.yaml
   - tools/image_to_video.yaml

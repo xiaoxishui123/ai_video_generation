@@ -42,10 +42,36 @@ class ImageToVideoTool(Tool):
     POLL_INTERVAL = 5
     MAX_POLL_ATTEMPTS = 96  # 96 * 5 = 480秒 = 8分钟
 
+    def _convert_to_internal_url(self, image_url: str) -> str:
+        """将 Dify 外部文件 URL 转换为内部访问 URL"""
+        dify_internal_url = self.runtime.credentials.get("dify_internal_url", "").strip()
+        if not dify_internal_url:
+            return image_url
+        
+        from urllib.parse import urlparse, urlunparse
+        try:
+            parsed = urlparse(image_url)
+            internal_parsed = urlparse(dify_internal_url)
+            # 替换 scheme、host 和 port，保留 path、query 和 fragment
+            new_url = urlunparse((
+                internal_parsed.scheme or parsed.scheme,
+                internal_parsed.netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            ))
+            return new_url
+        except Exception:
+            return image_url
+
     def _convert_image_to_base64(self, image_url: str) -> tuple[str, str]:
         """下载图片并转换为Base64格式"""
+        # 尝试转换为内部 URL
+        internal_url = self._convert_to_internal_url(image_url)
+        
         try:
-            response = requests.get(image_url, timeout=30, stream=True)
+            response = requests.get(internal_url, timeout=30, stream=True)
             response.raise_for_status()
             content_type = response.headers.get('Content-Type', 'image/jpeg')
             if not content_type.startswith('image/'):
@@ -56,6 +82,21 @@ class ImageToVideoTool(Tool):
             base64_data = base64.b64encode(response.content).decode('utf-8')
             return f"data:image/{image_format};base64,{base64_data}", ""
         except Exception as e:
+            # 如果内部 URL 失败且与原 URL 不同，尝试原 URL
+            if internal_url != image_url:
+                try:
+                    response = requests.get(image_url, timeout=30, stream=True)
+                    response.raise_for_status()
+                    content_type = response.headers.get('Content-Type', 'image/jpeg')
+                    if not content_type.startswith('image/'):
+                        content_type = 'image/jpeg'
+                    image_format = content_type.split('/')[-1].lower()
+                    format_map = {'jpg': 'jpeg', 'png': 'png', 'webp': 'webp', 'gif': 'gif'}
+                    image_format = format_map.get(image_format, 'jpeg')
+                    base64_data = base64.b64encode(response.content).decode('utf-8')
+                    return f"data:image/{image_format};base64,{base64_data}", ""
+                except Exception as e2:
+                    return "", f"图片处理失败: 内部URL({internal_url})错误:{str(e)}, 原URL错误:{str(e2)}"
             return "", f"图片处理失败: {str(e)}"
 
     def _is_public_accessible_url(self, url: str) -> bool:
