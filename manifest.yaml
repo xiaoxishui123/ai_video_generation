@@ -19,7 +19,7 @@ meta:
 name: ai_video_generation
 plugins:
   tools:
-    - provider/ai_video.yaml
+    - ai_video.yaml
 resource:
   memory: 268435456
   permission:
