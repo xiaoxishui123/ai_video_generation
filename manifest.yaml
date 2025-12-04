@@ -27,6 +27,7 @@ resource:
       enabled: true
     storage:
       enabled: true
+      size: 10485760
     network:
       enabled: true
 tags:
