@@ -391,12 +391,15 @@ class TextToVideoTool(Tool):
         prompt = params.get("prompt", "")
         duration = params.get("duration", "5")
         aspect_ratio = params.get("aspect_ratio", "16:9")
+        resolution = params.get("resolution", "1080p")
+        camera_control = params.get("camera_control", "auto")
         wait_for_completion = params.get("wait_for_completion", True)
         
         # 检查是否有图片参数（I2V 模式）
         image_url = params.get("_image_url", "")
         is_i2v_mode = bool(image_url)
         final_image_url = ""
+        need_base64 = False
         
         # 处理图片（如果是 I2V 模式）
         if is_i2v_mode:
@@ -412,12 +415,20 @@ class TextToVideoTool(Tool):
             else:
                 final_image_url = image_url
         
-        # 构建带参数的 prompt (与官方插件一致)
+        # 构建带参数的 prompt (火山方舟使用命令行参数格式)
         full_prompt = prompt
+        # 添加视频比例（文生视频时）
         if not is_i2v_mode and aspect_ratio and "--ratio" not in prompt:
             full_prompt = f"{full_prompt} --ratio {aspect_ratio}"
+        # 添加时长
         if duration and "--duration" not in prompt and "--dur" not in prompt:
             full_prompt = f"{full_prompt} --duration {duration}"
+        # 添加分辨率
+        if resolution and "--resolution" not in prompt:
+            full_prompt = f"{full_prompt} --resolution {resolution}"
+        # 添加镜头控制（固定镜头）
+        if camera_control == "fixed" and "--camera" not in prompt:
+            full_prompt = f"{full_prompt} --camera fixed"
         
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         mode_text = "图生视频 (I2V)" if is_i2v_mode else "文生视频 (T2V)"
@@ -426,12 +437,15 @@ class TextToVideoTool(Tool):
             f"🚀 **提交{mode_text}任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
+            f"📺 分辨率: {resolution}\n"
             f"⏱️ 时长: {duration}秒\n"
         )
         if is_i2v_mode:
             info_text += f"🖼️ 图片: {'Base64' if need_base64 else '公网URL'}\n"
         else:
             info_text += f"📐 宽高比: {aspect_ratio}\n"
+        if camera_control == "fixed":
+            info_text += f"📷 镜头: 固定\n"
         info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         
         yield self.create_text_message(info_text)

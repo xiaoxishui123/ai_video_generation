@@ -75,11 +75,35 @@ parameters:
     en_US: "[Volcengine Only] Provide image to switch to Image-to-Video mode"
   llm_description: 可选的参考图片，仅火山方舟平台支持
   form: llm
+- name: resolution
+  type: select
+  required: false
+  label:
+    zh_Hans: 分辨率
+    en_US: Resolution
+  human_description:
+    zh_Hans: 【仅火山方舟】视频分辨率
+    en_US: "[Volcengine Only] Video resolution"
+  form: form
+  default: "1080p"
+  options:
+  - value: "480p"
+    label:
+      zh_Hans: 480p (标清)
+      en_US: 480p (SD)
+  - value: "720p"
+    label:
+      zh_Hans: 720p (高清)
+      en_US: 720p (HD)
+  - value: "1080p"
+    label:
+      zh_Hans: 1080p (全高清)
+      en_US: 1080p (Full HD)
 - name: aspect_ratio
   type: select
   required: false
   label:
-    zh_Hans: 宽高比
+    zh_Hans: 视频比例
     en_US: Aspect Ratio
   human_description:
     zh_Hans: 视频的宽高比例
@@ -87,18 +111,30 @@ parameters:
   form: form
   default: "16:9"
   options:
+  - value: "21:9"
+    label:
+      zh_Hans: 21:9 (超宽屏)
+      en_US: 21:9 (Ultra Wide)
   - value: "16:9"
     label:
       zh_Hans: 16:9 (横屏)
       en_US: 16:9 (Landscape)
-  - value: "9:16"
+  - value: "4:3"
     label:
-      zh_Hans: 9:16 (竖屏)
-      en_US: 9:16 (Portrait)
+      zh_Hans: 4:3 (传统)
+      en_US: 4:3 (Traditional)
   - value: "1:1"
     label:
       zh_Hans: 1:1 (正方形)
       en_US: 1:1 (Square)
+  - value: "3:4"
+    label:
+      zh_Hans: 3:4 (竖屏传统)
+      en_US: 3:4 (Portrait Traditional)
+  - value: "9:16"
+    label:
+      zh_Hans: 9:16 (竖屏)
+      en_US: 9:16 (Portrait)
 - name: duration
   type: select
   required: false
@@ -119,6 +155,26 @@ parameters:
     label:
       zh_Hans: 10秒
       en_US: 10 seconds
+- name: camera_control
+  type: select
+  required: false
+  label:
+    zh_Hans: 镜头控制
+    en_US: Camera Control
+  human_description:
+    zh_Hans: 【仅火山方舟】控制视频中的镜头运动
+    en_US: "[Volcengine Only] Control camera movement in video"
+  form: form
+  default: "auto"
+  options:
+  - value: "auto"
+    label:
+      zh_Hans: 自动
+      en_US: Auto
+  - value: "fixed"
+    label:
+      zh_Hans: 固定镜头
+      en_US: Fixed Camera
 - name: wait_for_completion
   type: boolean
   required: false
