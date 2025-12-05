@@ -389,7 +389,13 @@ class ImageToVideoTool(Tool):
             yield self.create_text_message("❌ 错误：请配置火山方舟 API Key")
             return
         
+        # 获取 endpoint_id，如果配置了则使用 endpoint_id，否则使用 model 名称
+        endpoint_id = self.runtime.credentials.get("volcengine_endpoint_id", "").strip()
         model = params.get("model", "doubao-seaweed-241128")
+        
+        # 火山方舟 Ark API 需要使用 endpoint_id 作为 model 参数
+        if endpoint_id:
+            model = endpoint_id
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "让图片动起来")
         duration = params.get("duration", "5")

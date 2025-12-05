@@ -265,8 +265,15 @@ class TextToVideoTool(Tool):
             yield self.create_text_message("❌ 错误：请配置火山方舟 API Key")
             return
         
+        # 获取 endpoint_id，如果配置了则使用 endpoint_id，否则使用 model 名称
+        endpoint_id = self.runtime.credentials.get("volcengine_endpoint_id", "").strip()
+        
         # 解析参数
         model = params.get("model", "doubao-seedance-1-0-lite-t2v-250428")
+        
+        # 火山方舟 Ark API 需要使用 endpoint_id 作为 model 参数
+        if endpoint_id:
+            model = endpoint_id
         prompt = params.get("prompt", "")
         duration = params.get("duration", "5")
         aspect_ratio = params.get("aspect_ratio", "16:9")
