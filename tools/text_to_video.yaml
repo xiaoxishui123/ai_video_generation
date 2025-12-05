@@ -1,16 +1,16 @@
 description:
   human:
-    zh_Hans: 根据文本描述生成视频，支持阿里云百炼(通义万相)和火山方舟(豆包Seedance)模型
-    en_US: Generate video from text description, supporting Aliyun Wanxiang and Volcengine Seedance models
-  llm: Generate video from text description using AI models. Supports Aliyun Bailian and Volcengine Ark platforms.
+    zh_Hans: AI视频生成工具。火山方舟支持文生视频和图生视频（传入图片即为图生视频），阿里云仅支持文生视频
+    en_US: AI Video Generation. Volcengine supports both T2V and I2V (pass image for I2V), Aliyun supports T2V only
+  llm: Generate video from text or image+text. Volcengine Ark supports both T2V and I2V modes.
 extra:
   python:
     source: tools/text_to_video.py
 identity:
   author: xiaoxishui
   label:
-    zh_Hans: 文本生成视频
-    en_US: Text to Video
+    zh_Hans: 视频生成
+    en_US: Video Generation
   name: text_to_video
 parameters:
 - name: provider
@@ -63,6 +63,17 @@ parameters:
     zh_Hans: 详细描述你想要生成的视频内容，包括场景、动作、风格等
     en_US: Describe the video content you want, including scene, action, style, etc.
   llm_description: 视频内容的详细描述，越详细越好，如"一只可爱的小猫在阳光下奔跑，草地上充满了小花"
+  form: llm
+- name: image
+  type: file
+  required: false
+  label:
+    zh_Hans: 参考图片（可选）
+    en_US: Reference Image (Optional)
+  human_description:
+    zh_Hans: 【仅火山方舟】提供参考图片后将自动切换为图生视频模式
+    en_US: "[Volcengine Only] Provide image to switch to Image-to-Video mode"
+  llm_description: 可选的参考图片，仅火山方舟平台支持
   form: llm
 - name: aspect_ratio
   type: select

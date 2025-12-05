@@ -1,19 +1,17 @@
 """
-文本生成视频工具 (Text-to-Video)
+视频生成工具 (Video Generation)
 
 支持双平台：
-- 阿里云百炼：通义万相 wan2.5-t2v-preview
-- 火山方舟：豆包 Seedance 系列模型
+- 阿里云百炼：通义万相 wan2.5-t2v-preview（仅文生视频）
+- 火山方舟：豆包 Seedance 系列模型（支持文生视频和图生视频）
 
-功能：
-- 提交视频生成任务
-- 轮询任务状态
-- 返回视频URL和封面URL
+火山方舟：传入图片参数时自动切换为图生视频(I2V)模式
 
 参考: https://marketplace.dify.ai/plugins/allenwriter/doubao_image
 """
 
 import time
+import base64
 import requests
 from typing import Any, Generator
 from dify_plugin import Tool
@@ -47,6 +45,101 @@ class TextToVideoTool(Tool):
     POLL_INTERVAL = 5  # 轮询间隔（秒）
     MAX_POLL_ATTEMPTS = 96  # 96 * 5 = 480秒 = 8分钟
 
+    # ========== 图片处理方法（用于火山方舟 I2V 模式）==========
+    def _extract_image_url(self, image_param: Any) -> tuple[str, str]:
+        """从参数中提取图片URL，返回 (url, error)"""
+        if not image_param:
+            return "", ""  # 图片是可选的，没有图片不算错误
+        
+        if isinstance(image_param, str):
+            url = image_param.strip()
+            if url.startswith(("http://", "https://")):
+                return url, ""
+            return "", "图片URL格式无效"
+        
+        if isinstance(image_param, dict):
+            url = image_param.get("url", "") or image_param.get("remote_url", "")
+            if url:
+                return url, ""
+            return "", "文件对象中未找到有效的URL"
+        
+        return "", f"不支持的图片参数类型: {type(image_param)}"
+
+    def _convert_to_internal_url(self, image_url: str) -> str:
+        """将 Dify 外部文件 URL 转换为内部访问 URL"""
+        dify_internal_url = self.runtime.credentials.get("dify_internal_url", "").strip()
+        if not dify_internal_url:
+            return image_url
+        
+        from urllib.parse import urlparse, urlunparse
+        try:
+            parsed = urlparse(image_url)
+            internal_parsed = urlparse(dify_internal_url)
+            new_url = urlunparse((
+                internal_parsed.scheme or parsed.scheme,
+                internal_parsed.netloc,
+                parsed.path, parsed.params, parsed.query, parsed.fragment
+            ))
+            return new_url
+        except Exception:
+            return image_url
+
+    def _convert_image_to_base64(self, image_url: str) -> tuple[str, str]:
+        """下载图片并转换为Base64格式"""
+        internal_url = self._convert_to_internal_url(image_url)
+        
+        try:
+            response = requests.get(internal_url, timeout=30, stream=True)
+            response.raise_for_status()
+            content_type = response.headers.get('Content-Type', 'image/jpeg')
+            if not content_type.startswith('image/'):
+                content_type = 'image/jpeg'
+            image_format = content_type.split('/')[-1].lower()
+            format_map = {'jpg': 'jpeg', 'png': 'png', 'webp': 'webp', 'gif': 'gif'}
+            image_format = format_map.get(image_format, 'jpeg')
+            base64_data = base64.b64encode(response.content).decode('utf-8')
+            return f"data:image/{image_format};base64,{base64_data}", ""
+        except Exception as e:
+            if internal_url != image_url:
+                try:
+                    response = requests.get(image_url, timeout=30, stream=True)
+                    response.raise_for_status()
+                    content_type = response.headers.get('Content-Type', 'image/jpeg')
+                    if not content_type.startswith('image/'):
+                        content_type = 'image/jpeg'
+                    image_format = content_type.split('/')[-1].lower()
+                    format_map = {'jpg': 'jpeg', 'png': 'png', 'webp': 'webp', 'gif': 'gif'}
+                    image_format = format_map.get(image_format, 'jpeg')
+                    base64_data = base64.b64encode(response.content).decode('utf-8')
+                    return f"data:image/{image_format};base64,{base64_data}", ""
+                except Exception as e2:
+                    return "", f"图片处理失败: {str(e2)}"
+            return "", f"图片处理失败: {str(e)}"
+
+    def _is_public_accessible_url(self, url: str) -> bool:
+        """判断URL是否可被火山引擎公网访问"""
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(url)
+            host = parsed.hostname or ""
+            private_patterns = [
+                'localhost', '127.0.0.1', '127.', '10.',
+                '172.16.', '172.17.', '172.18.', '172.19.',
+                '172.20.', '172.21.', '172.22.', '172.23.',
+                '172.24.', '172.25.', '172.26.', '172.27.',
+                '172.28.', '172.29.', '172.30.', '172.31.',
+                '192.168.', '169.254.',
+            ]
+            for pattern in private_patterns:
+                if host.startswith(pattern) or host == pattern.rstrip('.'):
+                    return False
+            port = parsed.port
+            if port and port not in [80, 443]:
+                return False
+            return True
+        except Exception:
+            return False
+
     def _invoke(
         self, tool_parameters: dict[str, Any]
     ) -> Generator[ToolInvokeMessage, None, None]:
@@ -60,6 +153,25 @@ class TextToVideoTool(Tool):
         if not prompt:
             yield self.create_text_message("❌ 错误：视频描述不能为空")
             return
+        
+        # 处理图片参数（仅火山方舟支持）
+        image_param = tool_parameters.get("image")
+        image_url, img_error = self._extract_image_url(image_param)
+        
+        if img_error:
+            yield self.create_text_message(f"❌ 错误：{img_error}")
+            return
+        
+        # 如果阿里云平台传入了图片，提示用户使用专用工具
+        if provider == "aliyun" and image_url:
+            yield self.create_text_message(
+                "⚠️ 阿里云百炼平台不支持在此工具中使用图片\n"
+                "请使用【图片生成视频】工具进行图生视频操作"
+            )
+            return
+        
+        # 将图片URL存入参数供后续使用
+        tool_parameters["_image_url"] = image_url
         
         # 根据平台分发调用
         if provider == "aliyun":
@@ -255,9 +367,11 @@ class TextToVideoTool(Tool):
         self, params: dict
     ) -> Generator[ToolInvokeMessage, None, None]:
         """
-        调用火山方舟 Ark API (与官方 doubao_image 插件一致)
+        调用火山方舟 Ark API - 支持文生视频(T2V)和图生视频(I2V)
         
         API: https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks
+        - T2V: content 只包含 text
+        - I2V: content 包含 image_url + text
         """
         # 获取凭证
         api_key = self.runtime.credentials.get("volcengine_api_key", "")
@@ -279,22 +393,48 @@ class TextToVideoTool(Tool):
         aspect_ratio = params.get("aspect_ratio", "16:9")
         wait_for_completion = params.get("wait_for_completion", True)
         
+        # 检查是否有图片参数（I2V 模式）
+        image_url = params.get("_image_url", "")
+        is_i2v_mode = bool(image_url)
+        final_image_url = ""
+        
+        # 处理图片（如果是 I2V 模式）
+        if is_i2v_mode:
+            need_base64 = not self._is_public_accessible_url(image_url)
+            if need_base64:
+                yield self.create_text_message("🔄 检测到内网图片地址，正在转换为Base64格式...")
+                base64_url, error = self._convert_image_to_base64(image_url)
+                if error:
+                    yield self.create_text_message(f"❌ 图片转换失败: {error}")
+                    return
+                final_image_url = base64_url
+                yield self.create_text_message("✅ 图片转换成功")
+            else:
+                final_image_url = image_url
+        
         # 构建带参数的 prompt (与官方插件一致)
         full_prompt = prompt
-        if aspect_ratio and "--ratio" not in prompt:
+        if not is_i2v_mode and aspect_ratio and "--ratio" not in prompt:
             full_prompt = f"{full_prompt} --ratio {aspect_ratio}"
         if duration and "--duration" not in prompt and "--dur" not in prompt:
             full_prompt = f"{full_prompt} --duration {duration}"
         
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
-        yield self.create_text_message(
-            f"🚀 **提交视频生成任务**\n\n"
+        mode_text = "图生视频 (I2V)" if is_i2v_mode else "文生视频 (T2V)"
+        
+        info_text = (
+            f"🚀 **提交{mode_text}任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
             f"⏱️ 时长: {duration}秒\n"
-            f"📐 宽高比: {aspect_ratio}\n"
-            f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         )
+        if is_i2v_mode:
+            info_text += f"🖼️ 图片: {'Base64' if need_base64 else '公网URL'}\n"
+        else:
+            info_text += f"📐 宽高比: {aspect_ratio}\n"
+        info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
+        
+        yield self.create_text_message(info_text)
         
         # 构建请求头
         headers = {
@@ -302,16 +442,24 @@ class TextToVideoTool(Tool):
             "Content-Type": "application/json"
         }
         
-        # 构建请求体 - 与官方 doubao_image 插件一致
-        payload = {
-            "model": model,
-            "content": [
-                {
-                    "type": "text",
-                    "text": full_prompt
-                }
-            ]
-        }
+        # 构建请求体 - 根据模式选择 T2V 或 I2V
+        if is_i2v_mode:
+            # I2V 模式：包含图片 + 文本
+            payload = {
+                "model": model,
+                "content": [
+                    {"type": "image_url", "image_url": {"url": final_image_url}},
+                    {"type": "text", "text": full_prompt}
+                ]
+            }
+        else:
+            # T2V 模式：只有文本
+            payload = {
+                "model": model,
+                "content": [
+                    {"type": "text", "text": full_prompt}
+                ]
+            }
         
         try:
             # 提交任务
