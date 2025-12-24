@@ -254,6 +254,11 @@ class ImageToVideoTool(Tool):
         resolution = params.get("resolution", "720p")
         wait_for_completion = params.get("wait_for_completion", True)
         
+        # 音频相关参数（wan2.5/wan2.6支持）
+        enable_audio = params.get("enable_audio", True)  # 默认开启自动配音
+        audio_url = params.get("audio_url", "")  # 自定义音频URL
+        narration = params.get("narration", "")  # 旁白文本
+        
         # 判断是否为 wan2.6 模型
         is_wan26 = model.startswith("wan2.6")
         
@@ -293,6 +298,15 @@ class ImageToVideoTool(Tool):
         )
         if is_wan26:
             info_text += f"⏱️ 时长: {duration}秒\n"
+        # 音频信息
+        if audio_url:
+            info_text += f"🎵 音频: 使用自定义音频\n"
+        elif enable_audio:
+            info_text += f"🎤 配音: 自动生成\n"
+        else:
+            info_text += f"🔇 音频: 无声视频\n"
+        if narration:
+            info_text += f"📜 旁白: {narration[:30]}...\n"
         info_text += f"💬 描述: {prompt[:50]}..."
         
         yield self.create_text_message(info_text)
@@ -312,6 +326,10 @@ class ImageToVideoTool(Tool):
         else:
             input_data["image_url"] = final_image_url
         
+        # 添加自定义音频URL（如果提供）
+        if audio_url:
+            input_data["audio_url"] = audio_url
+        
         payload = {
             "model": model,
             "input": input_data,
@@ -320,13 +338,26 @@ class ImageToVideoTool(Tool):
             }
         }
         
+        # wan2.5/wan2.6 支持音频参数
+        if model.startswith("wan2.5") or model.startswith("wan2.6"):
+            # audio参数：True=自动配音，False=无声视频
+            # 如果提供了audio_url，则audio参数无效（audio_url优先级更高）
+            if not audio_url:
+                payload["parameters"]["audio"] = enable_audio
+        
         # wan2.6 支持额外参数
         if is_wan26:
             payload["parameters"]["duration"] = int(duration)
+            # 如果有旁白文本，可以将其合并到prompt中帮助模型理解配音内容
+            # 注意：wan2.6会根据prompt和画面自动生成配音
+            if narration and enable_audio:
+                # 将旁白内容加入prompt，帮助模型生成更匹配的配音
+                enhanced_prompt = f"{prompt}。旁白内容：{narration}"
+                input_data["prompt"] = enhanced_prompt
         
         try:
             response = requests.post(
-                f"{self.ALIYUN_API_BASE}/services/aigc/video-generation/generation",
+                f"{self.ALIYUN_API_BASE}/services/aigc/video-generation/video-synthesis",
                 headers=headers,
                 json=payload,
                 timeout=30

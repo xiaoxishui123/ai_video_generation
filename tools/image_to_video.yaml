@@ -22,8 +22,9 @@ parameters:
   human_description:
     zh_Hans: 选择视频生成平台
     en_US: Select video generation platform
-  form: form
-  default: volcengine
+  llm_description: 视频生成平台，支持 aliyun（阿里云百炼）或 volcengine（火山方舟）
+  form: llm
+  default: aliyun
   options:
   - value: aliyun
     label:
@@ -42,8 +43,9 @@ parameters:
   human_description:
     zh_Hans: 选择图生视频模型
     en_US: Select image-to-video model
-  form: form
-  default: doubao-seedance-1-5-pro-251215
+  llm_description: 视频生成模型，阿里云支持 wan2.6-i2v/wan2.5-i2v-preview，火山支持 doubao-seedance-1-5-pro-251215/doubao-seaweed-241128
+  form: llm
+  default: wan2.6-i2v
   options:
   - value: wan2.6-i2v
     label:
@@ -128,7 +130,8 @@ parameters:
   human_description:
     zh_Hans: 视频分辨率（通义万相2.6支持）
     en_US: Video resolution (Wanxiang 2.6 supported)
-  form: form
+  llm_description: 视频分辨率，支持 480p/720p/1080p
+  form: llm
   default: "720p"
   options:
   - value: "480p"
@@ -152,7 +155,8 @@ parameters:
   human_description:
     zh_Hans: 生成视频的时长（秒）。通义万相2.6支持5/10/15秒
     en_US: Duration of the generated video (seconds). Wanxiang 2.6 supports 5/10/15s
-  form: form
+  llm_description: 视频时长，支持 5/10/15 秒
+  form: llm
   default: "5"
   options:
   - value: "5"
@@ -167,6 +171,39 @@ parameters:
     label:
       zh_Hans: 15秒 (仅通义万相2.6)
       en_US: 15 seconds (Wanxiang 2.6 only)
+- name: enable_audio
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 启用自动配音
+    en_US: Enable Auto Audio
+  human_description:
+    zh_Hans: 是否为视频自动生成配音（仅通义万相2.5/2.6支持）
+    en_US: Whether to automatically generate audio for the video (only Wanxiang 2.5/2.6 supported)
+  form: form
+  default: true
+- name: audio_url
+  type: string
+  required: false
+  label:
+    zh_Hans: 自定义音频URL
+    en_US: Custom Audio URL
+  human_description:
+    zh_Hans: 自定义音频文件URL（可选，传入后会使用此音频而非自动生成）
+    en_US: Custom audio file URL (optional, will use this audio instead of auto-generated)
+  llm_description: 自定义音频文件URL，支持wav/mp3格式，时长3-30秒
+  form: llm
+- name: narration
+  type: string
+  required: false
+  label:
+    zh_Hans: 旁白文本
+    en_US: Narration Text
+  human_description:
+    zh_Hans: 旁白文本，模型会根据此文本自动生成配音（需启用自动配音）
+    en_US: Narration text, the model will auto-generate audio based on this (requires enable_audio)
+  llm_description: 旁白文本，用于自动配音。模型会根据此文本和画面内容生成语音。
+  form: llm
 - name: wait_for_completion
   type: boolean
   required: false
