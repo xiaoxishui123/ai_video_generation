@@ -256,8 +256,15 @@ class ImageToVideoTool(Tool):
         
         # 音频相关参数（wan2.5/wan2.6支持）
         enable_audio = params.get("enable_audio", True)  # 默认开启自动配音
-        audio_url = params.get("audio_url", "")  # 自定义音频URL
+        audio_url_raw = params.get("audio_url", "")  # 自定义音频URL
         narration = params.get("narration", "")  # 旁白文本
+        
+        # 验证 audio_url 是否为有效 URL（必须以 http:// 或 https:// 开头）
+        audio_url = ""
+        if audio_url_raw and isinstance(audio_url_raw, str):
+            audio_url_raw = audio_url_raw.strip()
+            if audio_url_raw.startswith(("http://", "https://")):
+                audio_url = audio_url_raw
         
         # 判断是否为 wan2.6 模型
         is_wan26 = model.startswith("wan2.6")
