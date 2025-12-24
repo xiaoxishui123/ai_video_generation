@@ -230,6 +230,23 @@ class ImageToVideoTool(Tool):
         except Exception:
             return False
 
+    def _is_aliyun_oss_url(self, url: str) -> bool:
+        """判断是否为阿里云OSS URL
+        
+        阿里云OSS的签名URL可以直接被阿里云API访问，不需要转换为Base64。
+        这可以避免因Base64过长导致的 "Range of input length should be [1, 61440]" 错误。
+        
+        OSS域名格式: bucket.oss-region.aliyuncs.com
+        """
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(url)
+            host = (parsed.hostname or "").lower()
+            # 阿里云OSS域名特征：包含 .aliyuncs.com 且包含 .oss- 或 oss.
+            return '.aliyuncs.com' in host and ('.oss-' in host or host.startswith('oss.') or '.oss.' in host)
+        except Exception:
+            return False
+
     # ========== 阿里云百炼实现 ==========
     def _invoke_aliyun(
         self, params: dict
@@ -288,22 +305,34 @@ class ImageToVideoTool(Tool):
         else:
             size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
         
-        # 检查URL是否需要转换为Base64（阿里云不接受带签名参数的URL）
+        # 检查URL是否需要转换为Base64
+        # 重要：阿里云OSS的签名URL可以直接被阿里云API访问，不需要转Base64！
+        # 这可以避免因Base64过长导致的 "Range of input length should be [1, 61440]" 错误
         final_image_url = image_url
         final_image_base64 = ""
         used_base64 = False
         
-        if self._url_has_query_params(image_url) or not self._is_public_accessible_url(image_url):
-            yield self.create_text_message(f"🔄 检测到图片URL带有签名参数，正在转换为Base64格式...")
+        # 阿里云OSS URL可以直接使用，无需转换
+        is_oss_url = self._is_aliyun_oss_url(image_url)
+        if is_oss_url:
+            yield self.create_text_message(f"✅ 检测到阿里云OSS图片，直接使用URL（无需转Base64）")
+        elif self._url_has_query_params(image_url) or not self._is_public_accessible_url(image_url):
+            yield self.create_text_message(f"🔄 检测到非OSS图片URL带有签名参数，正在转换为Base64格式...")
             # 阿里云使用纯 Base64 数据（不带前缀）
             base64_data, error = self._convert_image_to_base64(image_url, with_prefix=False)
             if error:
                 yield self.create_text_message(f"❌ 图片转换失败: {error}")
                 yield self.create_json_message({"success": False, "provider": "aliyun", "error_message": error})
                 return
-            final_image_base64 = base64_data
-            used_base64 = True
-            yield self.create_text_message(f"✅ 图片转换成功 (Base64长度: {len(base64_data)})")
+            # 检查Base64长度，阿里云限制61440字符
+            if len(base64_data) > 61440:
+                yield self.create_text_message(f"⚠️ Base64太大({len(base64_data)}字符，超过61440限制)，尝试直接使用URL...")
+                # 如果Base64太大，尝试直接使用URL（可能会失败，但值得一试）
+                used_base64 = False
+            else:
+                final_image_base64 = base64_data
+                used_base64 = True
+                yield self.create_text_message(f"✅ 图片转换成功 (Base64长度: {len(base64_data)})")
         
         model_name = self.ALIYUN_MODELS.get(model, {}).get("name", model)
         
