@@ -187,6 +187,15 @@ class ImageToVideoTool(Tool):
         else:
             yield self.create_text_message(f"❌ 错误：不支持的平台 {provider}")
 
+    def _url_has_query_params(self, url: str) -> bool:
+        """检查URL是否带有查询参数（签名等）"""
+        from urllib.parse import urlparse
+        try:
+            parsed = urlparse(url)
+            return bool(parsed.query)
+        except Exception:
+            return False
+
     # ========== 阿里云百炼实现 ==========
     def _invoke_aliyun(
         self, params: dict
@@ -205,12 +214,27 @@ class ImageToVideoTool(Tool):
         
         size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
         
+        # 检查URL是否需要转换为Base64（阿里云不接受带签名参数的URL）
+        final_image_url = image_url
+        used_base64 = False
+        
+        if self._url_has_query_params(image_url) or not self._is_public_accessible_url(image_url):
+            yield self.create_text_message(f"🔄 检测到图片URL带有签名参数，正在转换为Base64格式...")
+            base64_url, error = self._convert_image_to_base64(image_url)
+            if error:
+                yield self.create_text_message(f"❌ 图片转换失败: {error}")
+                yield self.create_json_message({"success": False, "provider": "aliyun", "error_message": error})
+                return
+            final_image_url = base64_url
+            used_base64 = True
+            yield self.create_text_message(f"✅ 图片转换成功")
+        
         model_name = self.ALIYUN_MODELS.get(model, {}).get("name", model)
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 阿里云百炼\n"
             f"📝 模型: {model_name}\n"
-            f"🖼️ 图片: {image_url[:60]}...\n"
+            f"🖼️ 图片: {'Base64' if used_base64 else image_url[:60]}...\n"
             f"📐 分辨率: {size}\n"
             f"💬 描述: {prompt[:50]}..."
         )
@@ -225,7 +249,7 @@ class ImageToVideoTool(Tool):
             "model": model,
             "input": {
                 "prompt": prompt,
-                "image_url": image_url
+                "image_url": final_image_url
             },
             "parameters": {
                 "size": size
