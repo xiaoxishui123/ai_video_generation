@@ -86,8 +86,15 @@ class ImageToVideoTool(Tool):
         except Exception:
             return image_url
 
-    def _convert_image_to_base64(self, image_url: str) -> tuple[str, str]:
-        """下载图片并转换为Base64格式"""
+    def _convert_image_to_base64(self, image_url: str, with_prefix: bool = True) -> tuple[str, str]:
+        """下载图片并转换为Base64格式
+        
+        Args:
+            image_url: 图片URL
+            with_prefix: 是否包含 data:image/...;base64, 前缀
+                        - True: 返回 data:image/png;base64,xxxx (火山引擎使用)
+                        - False: 返回纯 base64 数据 (阿里云使用)
+        """
         # 尝试转换为内部 URL
         internal_url = self._convert_to_internal_url(image_url)
         
@@ -101,7 +108,10 @@ class ImageToVideoTool(Tool):
             format_map = {'jpg': 'jpeg', 'png': 'png', 'webp': 'webp', 'gif': 'gif'}
             image_format = format_map.get(image_format, 'jpeg')
             base64_data = base64.b64encode(response.content).decode('utf-8')
-            return f"data:image/{image_format};base64,{base64_data}", ""
+            if with_prefix:
+                return f"data:image/{image_format};base64,{base64_data}", ""
+            else:
+                return base64_data, ""
         except Exception as e:
             # 如果内部 URL 失败且与原 URL 不同，尝试原 URL
             if internal_url != image_url:
@@ -115,7 +125,10 @@ class ImageToVideoTool(Tool):
                     format_map = {'jpg': 'jpeg', 'png': 'png', 'webp': 'webp', 'gif': 'gif'}
                     image_format = format_map.get(image_format, 'jpeg')
                     base64_data = base64.b64encode(response.content).decode('utf-8')
-                    return f"data:image/{image_format};base64,{base64_data}", ""
+                    if with_prefix:
+                        return f"data:image/{image_format};base64,{base64_data}", ""
+                    else:
+                        return base64_data, ""
                 except Exception as e2:
                     return "", f"图片处理失败: 内部URL({internal_url})错误:{str(e)}, 原URL错误:{str(e2)}"
             return "", f"图片处理失败: {str(e)}"
@@ -253,18 +266,20 @@ class ImageToVideoTool(Tool):
         
         # 检查URL是否需要转换为Base64（阿里云不接受带签名参数的URL）
         final_image_url = image_url
+        final_image_base64 = ""
         used_base64 = False
         
         if self._url_has_query_params(image_url) or not self._is_public_accessible_url(image_url):
             yield self.create_text_message(f"🔄 检测到图片URL带有签名参数，正在转换为Base64格式...")
-            base64_url, error = self._convert_image_to_base64(image_url)
+            # 阿里云使用纯 Base64 数据（不带前缀）
+            base64_data, error = self._convert_image_to_base64(image_url, with_prefix=False)
             if error:
                 yield self.create_text_message(f"❌ 图片转换失败: {error}")
                 yield self.create_json_message({"success": False, "provider": "aliyun", "error_message": error})
                 return
-            final_image_url = base64_url
+            final_image_base64 = base64_data
             used_base64 = True
-            yield self.create_text_message(f"✅ 图片转换成功")
+            yield self.create_text_message(f"✅ 图片转换成功 (Base64长度: {len(base64_data)})")
         
         model_name = self.ALIYUN_MODELS.get(model, {}).get("name", model)
         
@@ -288,12 +303,18 @@ class ImageToVideoTool(Tool):
             "X-DashScope-Async": "enable"
         }
         
+        # 构建请求体 - 阿里云对 URL 和 Base64 使用不同字段
+        # image_url: 使用图片URL
+        # image: 使用纯Base64数据（不带 data:image/...;base64, 前缀）
+        input_data = {"prompt": prompt}
+        if used_base64:
+            input_data["image"] = final_image_base64
+        else:
+            input_data["image_url"] = final_image_url
+        
         payload = {
             "model": model,
-            "input": {
-                "prompt": prompt,
-                "image_url": final_image_url
-            },
+            "input": input_data,
             "parameters": {
                 "size": size
             }
