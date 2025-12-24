@@ -33,6 +33,7 @@ class TextToVideoTool(Tool):
     VOLCENGINE_API_BASE = "https://ark.cn-beijing.volces.com/api/v3"
     VOLCENGINE_MODELS = {
         "doubao-seedance-1-0-lite-t2v-250428": {"name": "Seedance Lite T2V"},
+        "doubao-seedance-1-5-pro-251215": {"name": "Seedance 1.5 Pro (推荐)"},
     }
     
     # 阿里云分辨率映射 - 宽高比 -> size格式(宽*高)

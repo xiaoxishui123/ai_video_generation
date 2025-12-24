@@ -43,7 +43,7 @@ parameters:
     zh_Hans: 选择图生视频模型
     en_US: Select image-to-video model
   form: form
-  default: doubao-seaweed-241128
+  default: doubao-seedance-1-5-pro-251215
   options:
   - value: wan2.6-i2v
     label:
@@ -53,6 +53,10 @@ parameters:
     label:
       zh_Hans: "[阿里云] 通义万相 2.5 I2V"
       en_US: "[Aliyun] Wanxiang 2.5 I2V"
+  - value: doubao-seedance-1-5-pro-251215
+    label:
+      zh_Hans: "[火山] Seedance 1.5 Pro I2V (推荐)"
+      en_US: "[Volcengine] Seedance 1.5 Pro I2V (Recommended)"
   - value: doubao-seaweed-241128
     label:
       zh_Hans: "[火山] Seaweed I2V"

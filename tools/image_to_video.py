@@ -30,6 +30,7 @@ class ImageToVideoTool(Tool):
     VOLCENGINE_API_BASE = "https://ark.cn-beijing.volces.com/api/v3"
     VOLCENGINE_MODELS = {
         "doubao-seaweed-241128": {"name": "Seaweed I2V"},
+        "doubao-seedance-1-5-pro-251215": {"name": "Seedance 1.5 Pro I2V (推荐)"},
     }
 
     # 阿里云分辨率映射 - 宽高比 -> size格式(宽*高)
