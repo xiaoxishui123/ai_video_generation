@@ -250,9 +250,21 @@ class ImageToVideoTool(Tool):
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "让图片动起来")
         aspect_ratio = params.get("aspect_ratio", "16:9")
-        duration = params.get("duration", "5")
-        resolution = params.get("resolution", "720p")
         wait_for_completion = params.get("wait_for_completion", True)
+        
+        # 处理 duration 参数，确保空字符串或无效值使用默认值
+        duration_raw = params.get("duration", "5")
+        if not duration_raw or (isinstance(duration_raw, str) and not duration_raw.strip()):
+            duration = "5"
+        else:
+            duration = str(duration_raw).strip()
+        
+        # 处理 resolution 参数，确保空字符串或无效值使用默认值
+        resolution_raw = params.get("resolution", "720p")
+        if not resolution_raw or (isinstance(resolution_raw, str) and not resolution_raw.strip()):
+            resolution = "720p"
+        else:
+            resolution = str(resolution_raw).strip()
         
         # 音频相关参数（wan2.5/wan2.6支持）
         enable_audio = params.get("enable_audio", True)  # 默认开启自动配音
@@ -528,8 +540,14 @@ class ImageToVideoTool(Tool):
             model = endpoint_id
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "让图片动起来")
-        duration = params.get("duration", "5")
         wait_for_completion = params.get("wait_for_completion", True)
+        
+        # 处理 duration 参数，确保空字符串或无效值使用默认值
+        duration_raw = params.get("duration", "5")
+        if not duration_raw or (isinstance(duration_raw, str) and not duration_raw.strip()):
+            duration = "5"
+        else:
+            duration = str(duration_raw).strip()
         
         full_prompt = f"{prompt} --duration {duration}"
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
