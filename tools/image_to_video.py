@@ -22,7 +22,8 @@ class ImageToVideoTool(Tool):
     # ========== 阿里云百炼配置 ==========
     ALIYUN_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
     ALIYUN_MODELS = {
-        "wan2.5-i2v-preview": {"name": "通义万相 I2V", "type": "i2v"},
+        "wan2.5-i2v-preview": {"name": "通义万相 2.5 I2V", "type": "i2v"},
+        "wan2.6-i2v": {"name": "通义万相 2.6 I2V", "type": "i2v"},
     }
 
     # ========== 火山方舟配置 ==========
@@ -36,6 +37,25 @@ class ImageToVideoTool(Tool):
         "16:9": "1280*720",
         "9:16": "720*1280",
         "1:1": "720*720",
+    }
+    
+    # wan2.6 支持的分辨率映射 (支持480p/720p/1080p)
+    ALIYUN_26_SIZE_MAP = {
+        "480p": {
+            "16:9": "832*480",
+            "9:16": "480*832",
+            "1:1": "480*480",
+        },
+        "720p": {
+            "16:9": "1280*720",
+            "9:16": "720*1280",
+            "1:1": "720*720",
+        },
+        "1080p": {
+            "16:9": "1920*1080",
+            "9:16": "1080*1920",
+            "1:1": "1080*1080",
+        }
     }
 
     # 轮询配置 - Dify 插件有 10 分钟硬性超时，设置 8 分钟以留出余量
@@ -200,7 +220,13 @@ class ImageToVideoTool(Tool):
     def _invoke_aliyun(
         self, params: dict
     ) -> Generator[ToolInvokeMessage, None, None]:
-        """调用阿里云百炼 DashScope API (图生视频)"""
+        """
+        调用阿里云百炼 DashScope API (图生视频)
+        
+        支持的模型:
+        - wan2.5-i2v-preview: 通义万相 2.5 (固定5秒)
+        - wan2.6-i2v: 通义万相 2.6 (支持5/10/15秒，多分辨率)
+        """
         api_key = self.runtime.credentials.get("aliyun_api_key", "")
         if not api_key:
             yield self.create_text_message("❌ 错误：请配置阿里云百炼 API Key")
@@ -210,9 +236,19 @@ class ImageToVideoTool(Tool):
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "让图片动起来")
         aspect_ratio = params.get("aspect_ratio", "16:9")
+        duration = params.get("duration", "5")
+        resolution = params.get("resolution", "720p")
         wait_for_completion = params.get("wait_for_completion", True)
         
-        size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
+        # 判断是否为 wan2.6 模型
+        is_wan26 = model.startswith("wan2.6")
+        
+        # 分辨率映射
+        if is_wan26:
+            size_map = self.ALIYUN_26_SIZE_MAP.get(resolution, self.ALIYUN_26_SIZE_MAP["720p"])
+            size = size_map.get(aspect_ratio, "1280*720")
+        else:
+            size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
         
         # 检查URL是否需要转换为Base64（阿里云不接受带签名参数的URL）
         final_image_url = image_url
@@ -230,14 +266,20 @@ class ImageToVideoTool(Tool):
             yield self.create_text_message(f"✅ 图片转换成功")
         
         model_name = self.ALIYUN_MODELS.get(model, {}).get("name", model)
-        yield self.create_text_message(
+        
+        # 构建提示信息
+        info_text = (
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 阿里云百炼\n"
             f"📝 模型: {model_name}\n"
             f"🖼️ 图片: {'Base64' if used_base64 else image_url[:60]}...\n"
             f"📐 分辨率: {size}\n"
-            f"💬 描述: {prompt[:50]}..."
         )
+        if is_wan26:
+            info_text += f"⏱️ 时长: {duration}秒\n"
+        info_text += f"💬 描述: {prompt[:50]}..."
+        
+        yield self.create_text_message(info_text)
         
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -255,6 +297,10 @@ class ImageToVideoTool(Tool):
                 "size": size
             }
         }
+        
+        # wan2.6 支持额外参数
+        if is_wan26:
+            payload["parameters"]["duration"] = int(duration)
         
         try:
             response = requests.post(

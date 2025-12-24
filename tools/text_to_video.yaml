@@ -45,10 +45,14 @@ parameters:
   form: form
   default: doubao-seedance-1-0-lite-t2v-250428
   options:
+  - value: wan2.6-t2v
+    label:
+      zh_Hans: "[阿里云] 通义万相 2.6 T2V (推荐)"
+      en_US: "[Aliyun] Wanxiang 2.6 T2V (Recommended)"
   - value: wan2.5-t2v-preview
     label:
-      zh_Hans: "[阿里云] 通义万相 T2V"
-      en_US: "[Aliyun] Wanxiang T2V"
+      zh_Hans: "[阿里云] 通义万相 2.5 T2V"
+      en_US: "[Aliyun] Wanxiang 2.5 T2V"
   - value: doubao-seedance-1-0-lite-t2v-250428
     label:
       zh_Hans: "[火山] Seedance Lite T2V"
@@ -82,8 +86,8 @@ parameters:
     zh_Hans: 分辨率
     en_US: Resolution
   human_description:
-    zh_Hans: 【仅火山方舟】视频分辨率
-    en_US: "[Volcengine Only] Video resolution"
+    zh_Hans: 视频分辨率（通义万相2.6和火山方舟支持）
+    en_US: "Video resolution (Wanxiang 2.6 and Volcengine supported)"
   form: form
   default: "1080p"
   options:
@@ -142,8 +146,8 @@ parameters:
     zh_Hans: 视频时长
     en_US: Video Duration
   human_description:
-    zh_Hans: 生成视频的时长（秒）
-    en_US: Duration of the generated video (seconds)
+    zh_Hans: 生成视频的时长（秒）。通义万相2.6支持5/10/15秒，2.5固定5秒
+    en_US: Duration of the generated video (seconds). Wanxiang 2.6 supports 5/10/15s, 2.5 is fixed at 5s
   form: form
   default: "5"
   options:
@@ -155,6 +159,10 @@ parameters:
     label:
       zh_Hans: 10秒
       en_US: 10 seconds
+  - value: "15"
+    label:
+      zh_Hans: 15秒 (仅通义万相2.6)
+      en_US: 15 seconds (Wanxiang 2.6 only)
 - name: camera_control
   type: select
   required: false

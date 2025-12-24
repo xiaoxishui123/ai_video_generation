@@ -24,7 +24,8 @@ class TextToVideoTool(Tool):
     # ========== 阿里云百炼配置 ==========
     ALIYUN_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
     ALIYUN_MODELS = {
-        "wan2.5-t2v-preview": {"name": "通义万相 T2V", "type": "t2v"},
+        "wan2.5-t2v-preview": {"name": "通义万相 2.5 T2V", "type": "t2v"},
+        "wan2.6-t2v": {"name": "通义万相 2.6 T2V", "type": "t2v"},
     }
 
     # ========== 火山方舟配置 ==========
@@ -39,6 +40,25 @@ class TextToVideoTool(Tool):
         "16:9": "1280*720",
         "9:16": "720*1280",
         "1:1": "720*720",
+    }
+    
+    # wan2.6 支持的分辨率映射 (支持480p/720p/1080p)
+    ALIYUN_26_SIZE_MAP = {
+        "480p": {
+            "16:9": "832*480",
+            "9:16": "480*832",
+            "1:1": "480*480",
+        },
+        "720p": {
+            "16:9": "1280*720",
+            "9:16": "720*1280",
+            "1:1": "720*720",
+        },
+        "1080p": {
+            "16:9": "1920*1080",
+            "9:16": "1080*1920",
+            "1:1": "1080*1080",
+        }
     }
 
     # 轮询配置 - Dify 插件有 10 分钟硬性超时，设置 8 分钟以留出余量
@@ -189,6 +209,10 @@ class TextToVideoTool(Tool):
         调用阿里云百炼 DashScope API
         
         API文档：https://help.aliyun.com/zh/model-studio/video-generation-api-reference/
+        
+        支持的模型:
+        - wan2.5-t2v-preview: 通义万相 2.5 (固定5秒)
+        - wan2.6-t2v: 通义万相 2.6 (支持5/10/15秒，多分辨率)
         """
         # 获取凭证
         api_key = self.runtime.credentials.get("aliyun_api_key", "")
@@ -200,19 +224,37 @@ class TextToVideoTool(Tool):
         model = params.get("model", "wan2.5-t2v-preview")
         prompt = params.get("prompt", "")
         aspect_ratio = params.get("aspect_ratio", "16:9")
+        duration = params.get("duration", "5")
+        resolution = params.get("resolution", "720p")
         wait_for_completion = params.get("wait_for_completion", True)
         
+        # 判断是否为 wan2.6 模型
+        is_wan26 = model.startswith("wan2.6")
+        
         # 宽高比映射到size (宽*高格式)
-        size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
+        if is_wan26:
+            # wan2.6 支持多分辨率
+            size_map = self.ALIYUN_26_SIZE_MAP.get(resolution, self.ALIYUN_26_SIZE_MAP["720p"])
+            size = size_map.get(aspect_ratio, "1280*720")
+        else:
+            # wan2.5 使用固定映射
+            size = self.ALIYUN_SIZE_MAP.get(aspect_ratio, "1280*720")
         
         model_name = self.ALIYUN_MODELS.get(model, {}).get("name", model)
-        yield self.create_text_message(
+        
+        # 构建提示信息
+        info_text = (
             f"🚀 **提交视频生成任务**\n\n"
             f"🏢 平台: 阿里云百炼\n"
             f"📝 模型: {model_name}\n"
             f"📐 宽高比: {aspect_ratio} ({size})\n"
-            f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         )
+        if is_wan26:
+            info_text += f"📺 分辨率: {resolution}\n"
+            info_text += f"⏱️ 时长: {duration}秒\n"
+        info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
+        
+        yield self.create_text_message(info_text)
         
         # 构建请求
         headers = {
@@ -221,6 +263,7 @@ class TextToVideoTool(Tool):
             "X-DashScope-Async": "enable"  # 启用异步模式
         }
         
+        # 构建请求体
         payload = {
             "model": model,
             "input": {"prompt": prompt},
@@ -228,6 +271,10 @@ class TextToVideoTool(Tool):
                 "size": size
             }
         }
+        
+        # wan2.6 支持额外参数
+        if is_wan26:
+            payload["parameters"]["duration"] = int(duration)
         
         try:
             # 提交任务 - 使用 video-synthesis 端点
