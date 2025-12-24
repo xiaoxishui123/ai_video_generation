@@ -366,13 +366,14 @@ class ImageToVideoTool(Tool):
         }
         
         # 构建请求体 - 阿里云对 URL 和 Base64 使用不同字段
-        # image_url: 使用图片URL
-        # image: 使用纯Base64数据（不带 data:image/...;base64, 前缀）
+        # 注意：阿里云通义万相 I2V API 使用 img_url 字段（不是 image_url）
+        # img_url: 使用图片URL
+        # img: 使用纯Base64数据（不带 data:image/...;base64, 前缀）
         input_data = {"prompt": prompt}
         if used_base64:
-            input_data["image"] = final_image_base64
+            input_data["img"] = final_image_base64
         else:
-            input_data["image_url"] = final_image_url
+            input_data["img_url"] = final_image_url
         
         # 添加自定义音频URL（如果提供）
         if audio_url:
