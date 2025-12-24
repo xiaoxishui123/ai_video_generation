@@ -79,8 +79,8 @@ OUTPUT_FILE="../ai_video_generation-v${VERSION}.difypkg"
 rm -f "$OUTPUT_FILE"
 
 # 在当前目录内打包，确保 manifest.yaml 在根目录
-# 注意：不要使用 -D 选项，需要保留目录条目供 Dify 正确解析
-zip -r "$OUTPUT_FILE" . \
+# 必须使用 -D 选项不存储目录条目，否则 Dify 插件守护进程会报错 "read tools: is a directory"
+zip -rD "$OUTPUT_FILE" . \
     -x ".git/*" \
     -x "__pycache__/*" \
     -x "tools/__pycache__/*" \
