@@ -163,8 +163,8 @@ parameters:
     zh_Hans: 返回格式
     en_US: Response Format
   human_description:
-    zh_Hans: 图片返回格式：URL或Base64
-    en_US: Image response format: URL or Base64
+    zh_Hans: "图片返回格式：URL或Base64"
+    en_US: "Image response format - URL or Base64"
   form: form
   default: "url"
   options:
