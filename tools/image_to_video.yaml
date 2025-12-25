@@ -183,6 +183,28 @@ parameters:
     label:
       zh_Hans: 15秒 (仅通义万相2.6)
       en_US: 15 seconds (Wanxiang 2.6 only)
+- name: prompt_extend
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 智能扩写
+    en_US: Smart Prompt Extend
+  human_description:
+    zh_Hans: 【仅通义万相2.6】自动优化和扩展提示词，提升视频生成效果
+    en_US: "[Wanxiang 2.6 Only] Auto optimize and extend prompt for better video generation"
+  form: form
+  default: false
+- name: multi_shot
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 智能镜头
+    en_US: Multi-Shot
+  human_description:
+    zh_Hans: 【仅通义万相2.6】多镜头叙事，镜头切换时保持主体一致
+    en_US: "[Wanxiang 2.6 Only] Multi-shot narrative, maintain subject consistency across shots"
+  form: form
+  default: false
 - name: enable_audio
   type: boolean
   required: false

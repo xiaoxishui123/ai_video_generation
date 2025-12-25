@@ -50,12 +50,14 @@ class ImageToVideoTool(Tool):
         "1:1": "720*720",
     }
     
-    # wan2.6 支持的分辨率映射 (支持480p/720p/1080p)
+    # wan2.6 支持的分辨率映射 (支持720p/1080p)
+    # 注意：阿里云wan2.6不支持480p，自动使用720p尺寸
     ALIYUN_26_SIZE_MAP = {
         "480p": {
-            "16:9": "832*480",
-            "9:16": "480*832",
-            "1:1": "480*480",
+            # 阿里云不支持 480p，自动使用 720p 尺寸
+            "16:9": "1280*720",
+            "9:16": "720*1280",
+            "1:1": "720*720",
         },
         "720p": {
             "16:9": "1280*720",
@@ -300,6 +302,10 @@ class ImageToVideoTool(Tool):
         audio_url_raw = params.get("audio_url", "")  # 自定义音频URL
         narration = params.get("narration", "")  # 旁白文本
         
+        # wan2.6 特有参数
+        prompt_extend = params.get("prompt_extend", False)  # 智能扩写
+        multi_shot = params.get("multi_shot", False)  # 智能镜头
+        
         # 验证 audio_url 是否为有效 URL（必须以 http:// 或 https:// 开头）
         audio_url = ""
         if audio_url_raw and isinstance(audio_url_raw, str):
@@ -358,6 +364,11 @@ class ImageToVideoTool(Tool):
         )
         if is_wan26:
             info_text += f"⏱️ 时长: {duration}秒\n"
+            # wan2.6 特有功能
+            if prompt_extend:
+                info_text += f"✨ 智能扩写: 已开启\n"
+            if multi_shot:
+                info_text += f"🎬 智能镜头: 已开启\n"
         # 音频信息
         if audio_url:
             info_text += f"🎵 音频: 使用自定义音频\n"
@@ -409,6 +420,12 @@ class ImageToVideoTool(Tool):
         # wan2.6 支持额外参数
         if is_wan26:
             payload["parameters"]["duration"] = int(duration)
+            # 智能扩写 - 自动优化和扩展提示词
+            if prompt_extend:
+                payload["parameters"]["prompt_extend"] = True
+            # 智能镜头 - 多镜头叙事
+            if multi_shot:
+                payload["parameters"]["multi_shot"] = True
             # 如果有旁白文本，可以将其合并到prompt中帮助模型理解配音内容
             # 注意：wan2.6会根据prompt和画面自动生成配音
             if narration and enable_audio:
