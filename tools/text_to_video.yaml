@@ -91,9 +91,9 @@ parameters:
     zh_Hans: 参考图片（可选）
     en_US: Reference Image (Optional)
   human_description:
-    zh_Hans: 【仅火山方舟】提供参考图片后将自动切换为图生视频模式
-    en_US: "[Volcengine Only] Provide image to switch to Image-to-Video mode"
-  llm_description: 可选的参考图片，仅火山方舟平台支持
+    zh_Hans: 【火山方舟/JXINCM】提供参考图片后将自动切换为图生视频模式
+    en_US: "[Volcengine/JXINCM] Provide image to switch to Image-to-Video mode"
+  llm_description: 可选的参考图片，火山方舟和JXINCM平台支持
   form: llm
 - name: resolution
   type: select
@@ -126,31 +126,31 @@ parameters:
     zh_Hans: 视频比例
     en_US: Aspect Ratio
   human_description:
-    zh_Hans: 视频的宽高比例
-    en_US: Aspect ratio of the video
+    zh_Hans: 视频的宽高比例。阿里云仅支持16:9/9:16/1:1，其他比例会自动调整
+    en_US: Aspect ratio of the video. Aliyun only supports 16:9/9:16/1:1, others will be auto-adjusted
   form: form
   default: "16:9"
   options:
   - value: "21:9"
     label:
-      zh_Hans: 21:9 (超宽屏)
-      en_US: 21:9 (Ultra Wide)
+      zh_Hans: 21:9 (超宽屏) ⚠️阿里云→16:9
+      en_US: 21:9 (Ultra Wide) ⚠️Aliyun→16:9
   - value: "16:9"
     label:
       zh_Hans: 16:9 (横屏)
       en_US: 16:9 (Landscape)
   - value: "4:3"
     label:
-      zh_Hans: 4:3 (传统)
-      en_US: 4:3 (Traditional)
+      zh_Hans: 4:3 (传统) ⚠️阿里云→16:9
+      en_US: 4:3 (Traditional) ⚠️Aliyun→16:9
   - value: "1:1"
     label:
       zh_Hans: 1:1 (正方形)
       en_US: 1:1 (Square)
   - value: "3:4"
     label:
-      zh_Hans: 3:4 (竖屏传统)
-      en_US: 3:4 (Portrait Traditional)
+      zh_Hans: 3:4 (竖屏传统) ⚠️阿里云→9:16
+      en_US: 3:4 (Portrait Traditional) ⚠️Aliyun→9:16
   - value: "9:16"
     label:
       zh_Hans: 9:16 (竖屏)

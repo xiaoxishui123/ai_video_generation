@@ -252,6 +252,20 @@ class TextToVideoTool(Tool):
         # 判断是否为 wan2.6 模型
         is_wan26 = model.startswith("wan2.6")
         
+        # 阿里云支持的宽高比
+        aliyun_supported_ratios = ["16:9", "9:16", "1:1"]
+        ratio_warning = ""
+        
+        # 检查宽高比是否支持
+        if aspect_ratio not in aliyun_supported_ratios:
+            original_ratio = aspect_ratio
+            # 回退到最接近的支持比例
+            if aspect_ratio in ["21:9", "4:3"]:
+                aspect_ratio = "16:9"  # 横屏回退到 16:9
+            elif aspect_ratio == "3:4":
+                aspect_ratio = "9:16"  # 竖屏回退到 9:16
+            ratio_warning = f"⚠️ 阿里云不支持 {original_ratio}，已自动调整为 {aspect_ratio}\n"
+        
         # 宽高比映射到size (宽*高格式)
         if is_wan26:
             # wan2.6 支持多分辨率
@@ -268,8 +282,10 @@ class TextToVideoTool(Tool):
             f"🚀 **提交视频生成任务**\n\n"
             f"🏢 平台: 阿里云百炼\n"
             f"📝 模型: {model_name}\n"
-            f"📐 宽高比: {aspect_ratio} ({size})\n"
         )
+        if ratio_warning:
+            info_text += ratio_warning
+        info_text += f"📐 宽高比: {aspect_ratio} ({size})\n"
         if is_wan26:
             info_text += f"📺 分辨率: {resolution}\n"
             info_text += f"⏱️ 时长: {duration}秒\n"
