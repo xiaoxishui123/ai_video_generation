@@ -244,6 +244,11 @@ class TextToVideoTool(Tool):
         resolution = params.get("resolution", "720p")
         wait_for_completion = params.get("wait_for_completion", True)
         
+        # wan2.6 专属参数
+        prompt_extend = params.get("prompt_extend", False)  # 智能扩写
+        multi_shot = params.get("multi_shot", False)  # 智能镜头（多镜头叙事）
+        bgm_generate = params.get("bgm_generate", False)  # 生成配音/背景音乐
+        
         # 判断是否为 wan2.6 模型
         is_wan26 = model.startswith("wan2.6")
         
@@ -268,6 +273,16 @@ class TextToVideoTool(Tool):
         if is_wan26:
             info_text += f"📺 分辨率: {resolution}\n"
             info_text += f"⏱️ 时长: {duration}秒\n"
+            # 显示 wan2.6 专属功能状态
+            features = []
+            if prompt_extend:
+                features.append("智能扩写")
+            if multi_shot:
+                features.append("智能镜头")
+            if bgm_generate:
+                features.append("生成配音")
+            if features:
+                info_text += f"✨ 增强功能: {', '.join(features)}\n"
         info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         
         yield self.create_text_message(info_text)
@@ -291,6 +306,15 @@ class TextToVideoTool(Tool):
         # wan2.6 支持额外参数
         if is_wan26:
             payload["parameters"]["duration"] = int(duration)
+            # 智能扩写：自动优化提示词
+            if prompt_extend:
+                payload["parameters"]["prompt_extend"] = True
+            # 智能镜头：多镜头叙事，保持主体一致
+            if multi_shot:
+                payload["parameters"]["multi_shot"] = True
+            # 生成配音/背景音乐：音画同步
+            if bgm_generate:
+                payload["parameters"]["bgm_generate"] = True
         
         try:
             # 提交任务 - 使用 video-synthesis 端点
