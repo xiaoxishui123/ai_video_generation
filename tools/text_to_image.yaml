@@ -1,0 +1,179 @@
+description:
+  human:
+    zh_Hans: AI图像生成工具。使用火山引擎豆包 Seedream 模型根据文本描述生成图片
+    en_US: AI Image Generation. Generate images from text descriptions using Volcengine Doubao Seedream models
+  llm: Generate images from text descriptions using Volcengine Ark Seedream models.
+extra:
+  python:
+    source: tools/text_to_image.py
+identity:
+  author: xiaoxishui
+  label:
+    zh_Hans: 文本生成图片
+    en_US: Text to Image
+  name: text_to_image
+parameters:
+- name: model
+  type: select
+  required: true
+  label:
+    zh_Hans: 模型
+    en_US: Model
+  human_description:
+    zh_Hans: 选择图像生成模型
+    en_US: Select image generation model
+  form: form
+  default: doubao-seedream-4-5-251128
+  options:
+  - value: doubao-seedream-4-5-251128
+    label:
+      zh_Hans: "[火山] Seedream 4.5 (推荐，最新)"
+      en_US: "[Volcengine] Seedream 4.5 (Recommended, Latest)"
+  - value: doubao-seedream-3-0-t2i-250110
+    label:
+      zh_Hans: "[火山] Seedream 3.0 T2I"
+      en_US: "[Volcengine] Seedream 3.0 T2I"
+- name: prompt
+  type: string
+  required: true
+  label:
+    zh_Hans: 图片描述
+    en_US: Image Description
+  human_description:
+    zh_Hans: 详细描述你想要生成的图片内容，包括风格、场景、色调等
+    en_US: Describe the image content you want, including style, scene, color tone, etc.
+  llm_description: 图片内容的详细描述，越详细越好，如"一只可爱的小猫在阳光下玩耍，水彩风格，柔和的色调"
+  form: llm
+- name: negative_prompt
+  type: string
+  required: false
+  label:
+    zh_Hans: 负面提示词
+    en_US: Negative Prompt
+  human_description:
+    zh_Hans: 描述不希望出现在图片中的内容
+    en_US: Describe what you don't want in the image
+  llm_description: 负面提示词，描述不希望出现的内容，如"模糊、低质量、变形"
+  form: llm
+- name: size
+  type: select
+  required: false
+  label:
+    zh_Hans: 图片尺寸
+    en_US: Image Size
+  human_description:
+    zh_Hans: 生成图片的尺寸规格
+    en_US: Size of the generated image
+  form: form
+  default: "1024x1024"
+  options:
+  - value: "512x512"
+    label:
+      zh_Hans: 512x512 (小)
+      en_US: 512x512 (Small)
+  - value: "768x768"
+    label:
+      zh_Hans: 768x768 (中)
+      en_US: 768x768 (Medium)
+  - value: "1024x1024"
+    label:
+      zh_Hans: 1024x1024 (标准)
+      en_US: 1024x1024 (Standard)
+  - value: "1280x720"
+    label:
+      zh_Hans: 1280x720 (16:9 横屏)
+      en_US: 1280x720 (16:9 Landscape)
+  - value: "720x1280"
+    label:
+      zh_Hans: 720x1280 (9:16 竖屏)
+      en_US: 720x1280 (9:16 Portrait)
+  - value: "1536x1024"
+    label:
+      zh_Hans: 1536x1024 (3:2 横屏)
+      en_US: 1536x1024 (3:2 Landscape)
+  - value: "1024x1536"
+    label:
+      zh_Hans: 1024x1536 (2:3 竖屏)
+      en_US: 1024x1536 (2:3 Portrait)
+  - value: "2048x2048"
+    label:
+      zh_Hans: 2048x2048 (2K)
+      en_US: 2048x2048 (2K)
+- name: num_images
+  type: select
+  required: false
+  label:
+    zh_Hans: 生成数量
+    en_US: Number of Images
+  human_description:
+    zh_Hans: 一次生成的图片数量
+    en_US: Number of images to generate at once
+  form: form
+  default: "1"
+  options:
+  - value: "1"
+    label:
+      zh_Hans: 1张
+      en_US: 1 image
+  - value: "2"
+    label:
+      zh_Hans: 2张
+      en_US: 2 images
+  - value: "4"
+    label:
+      zh_Hans: 4张
+      en_US: 4 images
+- name: seed
+  type: number
+  required: false
+  label:
+    zh_Hans: 随机种子
+    en_US: Random Seed
+  human_description:
+    zh_Hans: 固定随机种子可以生成相似的图片（可选）
+    en_US: Fixed seed generates similar images (optional)
+  llm_description: 随机种子，用于控制生成结果的可复现性
+  form: llm
+- name: guidance_scale
+  type: number
+  required: false
+  label:
+    zh_Hans: 引导系数
+    en_US: Guidance Scale
+  human_description:
+    zh_Hans: 控制图片与提示词的匹配程度，值越大越接近提示词（默认7.5，范围1-20）
+    en_US: Controls how closely the image matches the prompt (default 7.5, range 1-20)
+  llm_description: CFG引导系数，控制生成图片与提示词的匹配程度
+  form: llm
+- name: watermark
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 添加水印
+    en_US: Add Watermark
+  human_description:
+    zh_Hans: 是否在生成的图片上添加水印
+    en_US: Whether to add watermark to generated images
+  form: form
+  default: false
+- name: response_format
+  type: select
+  required: false
+  label:
+    zh_Hans: 返回格式
+    en_US: Response Format
+  human_description:
+    zh_Hans: 图片返回格式：URL或Base64
+    en_US: Image response format: URL or Base64
+  form: form
+  default: "url"
+  options:
+  - value: "url"
+    label:
+      zh_Hans: URL链接
+      en_US: URL Link
+  - value: "b64_json"
+    label:
+      zh_Hans: Base64编码
+      en_US: Base64 Encoded
+

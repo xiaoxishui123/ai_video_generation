@@ -1,11 +1,14 @@
 """
 任务状态查询工具 (Query Task)
 
-支持双平台：
+支持三大平台：
 - 阿里云百炼：查询DashScope任务状态
 - 火山方舟：查询Ark任务状态
+- JXINCM：查询Sora2任务状态（第三方服务）
 
-参考: https://marketplace.dify.ai/plugins/allenwriter/doubao_image
+参考: 
+- https://marketplace.dify.ai/plugins/allenwriter/doubao_image
+- https://github.com/wwwzhouhui/sora2
 """
 
 import requests
@@ -15,10 +18,11 @@ from dify_plugin.entities.tool import ToolInvokeMessage
 
 
 class QueryTaskTool(Tool):
-    """任务状态查询工具 - 双平台支持"""
+    """任务状态查询工具 - 三平台支持"""
 
     ALIYUN_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
     VOLCENGINE_API_BASE = "https://ark.cn-beijing.volces.com/api/v3"
+    JXINCM_API_BASE = "https://api.jxincm.cn/v1"
     
     ALIYUN_STATUS_MAP = {
         "PENDING": "等待中",
@@ -33,6 +37,14 @@ class QueryTaskTool(Tool):
         "succeeded": "已完成",
         "failed": "失败",
         "canceled": "已取消",
+        "unknown": "未知"
+    }
+    
+    JXINCM_STATUS_MAP = {
+        "queued": "排队中",
+        "processing": "生成中",
+        "completed": "已完成",
+        "failed": "失败",
         "unknown": "未知"
     }
 
@@ -51,6 +63,8 @@ class QueryTaskTool(Tool):
             yield from self._query_aliyun(task_id)
         elif provider == "volcengine":
             yield from self._query_volcengine(task_id)
+        elif provider == "jxincm":
+            yield from self._query_jxincm(task_id)
         else:
             yield self.create_text_message(f"❌ 错误：不支持的平台 {provider}")
 
@@ -252,6 +266,112 @@ class QueryTaskTool(Tool):
                     "task_id": task_id,
                     "status": status,
                     "status_text": status_text
+                })
+                
+        except requests.Timeout:
+            yield self.create_text_message("❌ 错误: 请求超时")
+        except Exception as e:
+            yield self.create_text_message(f"❌ 错误: {str(e)}")
+
+    def _query_jxincm(
+        self, task_id: str
+    ) -> Generator[ToolInvokeMessage, None, None]:
+        """查询 JXINCM (Sora2) 任务状态"""
+        api_key = self.runtime.credentials.get("jxincm_api_key", "")
+        if not api_key:
+            yield self.create_text_message("❌ 错误：请配置 JXINCM API Key")
+            return
+        
+        yield self.create_text_message(
+            f"🔍 **查询任务状态**\n\n"
+            f"⚠️ 注意：这是第三方服务\n"
+            f"🏢 平台: JXINCM (Sora2)\n"
+            f"🔖 任务ID: `{task_id}`"
+        )
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            response = requests.get(
+                f"{self.JXINCM_API_BASE}/video/query?id={task_id}",
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                yield self.create_text_message(f"❌ 查询失败: {response.status_code} - {response.text}")
+                yield self.create_json_message({
+                    "success": False,
+                    "provider": "jxincm",
+                    "task_id": task_id,
+                    "error_message": response.text
+                })
+                return
+            
+            result = response.json()
+            status = result.get("status", "unknown")
+            progress = result.get("progress", 0)
+            status_text = self.JXINCM_STATUS_MAP.get(status, status)
+            
+            if status == "completed":
+                detail = result.get("detail", {})
+                video_url = detail.get("url", "")
+                thumbnail_url = detail.get("thumbnail", "")
+                gif_url = detail.get("gif", "")
+                
+                yield self.create_text_message(
+                    f"✅ **任务已完成**\n\n"
+                    f"📊 状态: {status_text}\n"
+                    f"📹 视频: {video_url}\n"
+                    f"🖼️ 缩略图: {thumbnail_url}\n"
+                    f"🎬 GIF预览: {gif_url}"
+                )
+                if video_url:
+                    yield self.create_image_message(video_url)
+                yield self.create_json_message({
+                    "success": True,
+                    "provider": "jxincm",
+                    "task_id": task_id,
+                    "status": status,
+                    "status_text": status_text,
+                    "video_url": video_url,
+                    "thumbnail_url": thumbnail_url,
+                    "gif_url": gif_url
+                })
+                
+            elif status == "failed":
+                error_msg = result.get("error", {}).get("message", "未知错误")
+                yield self.create_text_message(
+                    f"❌ **任务失败**\n\n"
+                    f"📊 状态: {status_text}\n"
+                    f"💬 原因: {error_msg}"
+                )
+                yield self.create_json_message({
+                    "success": True,
+                    "provider": "jxincm",
+                    "task_id": task_id,
+                    "status": status,
+                    "status_text": status_text,
+                    "error_message": error_msg
+                })
+                
+            else:
+                yield self.create_text_message(
+                    f"⏳ **任务进行中**\n\n"
+                    f"📊 状态: {status_text}\n"
+                    f"📈 进度: {progress}%\n"
+                    f"💡 提示: 请稍后再次查询"
+                )
+                yield self.create_json_message({
+                    "success": True,
+                    "provider": "jxincm",
+                    "task_id": task_id,
+                    "status": status,
+                    "status_text": status_text,
+                    "progress": progress
                 })
                 
         except requests.Timeout:

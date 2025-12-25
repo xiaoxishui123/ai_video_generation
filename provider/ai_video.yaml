@@ -3,11 +3,11 @@ identity:
   author: xiaoxishui
   icon: icon.svg
   label:
-    zh_Hans: AI视频生成
-    en_US: AI Video Generation
+    zh_Hans: AI视频/图片生成
+    en_US: AI Video/Image Generation
   description:
-    zh_Hans: AI视频生成工具，支持阿里云百炼和火山方舟平台的文生视频(T2V)和图生视频(I2V)功能
-    en_US: AI Video Generation tool supporting Aliyun Bailian and Volcengine platforms for T2V and I2V
+    zh_Hans: AI视频和图片生成工具，支持阿里云百炼、火山方舟和JXINCM(Sora2)平台的文生视频(T2V)、图生视频(I2V)和文生图(T2I)功能
+    en_US: AI Video and Image Generation tool supporting Aliyun Bailian, Volcengine and JXINCM(Sora2) platforms for T2V, I2V and T2I
 
 credentials_for_provider:
   aliyun_api_key:
@@ -61,9 +61,23 @@ credentials_for_provider:
       zh_Hans: 插件访问 Dify 文件服务的内部地址。如果图片转换失败提示404错误，请配置此项。常用值：Docker Compose 部署用 http://api:5001，Docker Desktop 用 http://host.docker.internal:5001
       en_US: Internal URL for plugin to access Dify file service. Configure this if image conversion fails with 404 error.
 
+  jxincm_api_key:
+    type: secret-input
+    required: false
+    label:
+      zh_Hans: JXINCM API Key (Sora2)
+      en_US: JXINCM API Key (Sora2)
+    placeholder:
+      zh_Hans: 请输入 JXINCM 平台 API Key
+      en_US: Enter JXINCM Platform API Key
+    help:
+      zh_Hans: ⚠️ 第三方服务，从 JXINCM 平台获取。支持 Sora-2 视频生成，固定15秒时长。注意：这是第三方代理服务，稳定性和持续性不做保证
+      en_US: ⚠️ Third-party service. Get from JXINCM platform. Supports Sora-2 video generation with fixed 15s duration. Note - This is a third-party proxy service, stability not guaranteed
+
 tools:
   - tools/text_to_video.yaml
   - tools/image_to_video.yaml
+  - tools/text_to_image.yaml
   - tools/query_task.yaml
 
 extra:

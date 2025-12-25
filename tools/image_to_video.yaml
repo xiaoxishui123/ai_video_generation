@@ -1,8 +1,8 @@
 description:
   human:
-    zh_Hans: 根据图片和文本描述生成视频，支持阿里云百炼(通义万相)和火山方舟(豆包Seedance)模型
-    en_US: Generate video from image and text description, supporting Aliyun Wanxiang and Volcengine Seedance models
-  llm: Generate video from image and text description using AI models. Supports Aliyun Bailian and Volcengine Ark platforms.
+    zh_Hans: 根据图片和文本描述生成视频，支持阿里云百炼、火山方舟和JXINCM(Sora2)平台
+    en_US: Generate video from image and text description, supporting Aliyun, Volcengine and JXINCM(Sora2) platforms
+  llm: Generate video from image and text description using AI models. Supports Aliyun Bailian, Volcengine Ark and JXINCM(Sora2) platforms.
 extra:
   python:
     source: tools/image_to_video.py
@@ -34,6 +34,10 @@ parameters:
     label:
       zh_Hans: 火山方舟
       en_US: Volcengine Ark
+  - value: jxincm
+    label:
+      zh_Hans: JXINCM (Sora2) ⚠️第三方
+      en_US: JXINCM (Sora2) ⚠️Third-party
 - name: model
   type: select
   required: true
@@ -63,6 +67,14 @@ parameters:
     label:
       zh_Hans: "[火山] Seaweed I2V"
       en_US: "[Volcengine] Seaweed I2V"
+  - value: sora-2
+    label:
+      zh_Hans: "[JXINCM] Sora-2 I2V (标准) ⚠️第三方"
+      en_US: "[JXINCM] Sora-2 I2V (Standard) ⚠️Third-party"
+  - value: sora-2-pro
+    label:
+      zh_Hans: "[JXINCM] Sora-2 Pro I2V (高质量) ⚠️第三方"
+      en_US: "[JXINCM] Sora-2 Pro I2V (High Quality) ⚠️Third-party"
 - name: image
   type: file
   required: false

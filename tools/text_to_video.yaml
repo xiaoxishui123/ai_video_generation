@@ -1,8 +1,8 @@
 description:
   human:
-    zh_Hans: AI视频生成工具。火山方舟支持文生视频和图生视频（传入图片即为图生视频），阿里云仅支持文生视频
-    en_US: AI Video Generation. Volcengine supports both T2V and I2V (pass image for I2V), Aliyun supports T2V only
-  llm: Generate video from text or image+text. Volcengine Ark supports both T2V and I2V modes.
+    zh_Hans: AI视频生成工具。支持阿里云百炼、火山方舟和JXINCM(Sora2)三大平台的文生视频功能
+    en_US: AI Video Generation. Supports Aliyun, Volcengine and JXINCM(Sora2) platforms for T2V
+  llm: Generate video from text or image+text. Supports multiple platforms including Aliyun, Volcengine and JXINCM(Sora2).
 extra:
   python:
     source: tools/text_to_video.py
@@ -33,6 +33,10 @@ parameters:
     label:
       zh_Hans: 火山方舟
       en_US: Volcengine Ark
+  - value: jxincm
+    label:
+      zh_Hans: JXINCM (Sora2) ⚠️第三方
+      en_US: JXINCM (Sora2) ⚠️Third-party
 - name: model
   type: select
   required: true
@@ -61,6 +65,14 @@ parameters:
     label:
       zh_Hans: "[火山] Seedance Lite T2V"
       en_US: "[Volcengine] Seedance Lite T2V"
+  - value: sora-2
+    label:
+      zh_Hans: "[JXINCM] Sora-2 (标准) ⚠️第三方"
+      en_US: "[JXINCM] Sora-2 (Standard) ⚠️Third-party"
+  - value: sora-2-pro
+    label:
+      zh_Hans: "[JXINCM] Sora-2 Pro (高质量) ⚠️第三方"
+      en_US: "[JXINCM] Sora-2 Pro (High Quality) ⚠️Third-party"
 - name: prompt
   type: string
   required: true
@@ -187,6 +199,37 @@ parameters:
     label:
       zh_Hans: 固定镜头
       en_US: Fixed Camera
+- name: orientation
+  type: select
+  required: false
+  label:
+    zh_Hans: 视频方向
+    en_US: Video Orientation
+  human_description:
+    zh_Hans: 【仅JXINCM】视频画面方向：横屏或竖屏
+    en_US: "[JXINCM Only] Video orientation: landscape or portrait"
+  form: form
+  default: "landscape"
+  options:
+  - value: "landscape"
+    label:
+      zh_Hans: 横屏
+      en_US: Landscape
+  - value: "portrait"
+    label:
+      zh_Hans: 竖屏
+      en_US: Portrait
+- name: watermark
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 添加水印
+    en_US: Add Watermark
+  human_description:
+    zh_Hans: 【仅JXINCM】是否在视频上添加水印
+    en_US: "[JXINCM Only] Whether to add watermark to video"
+  form: form
+  default: false
 - name: wait_for_completion
   type: boolean
   required: false

@@ -1,13 +1,16 @@
 """
 视频生成工具 (Video Generation)
 
-支持双平台：
+支持三大平台：
 - 阿里云百炼：通义万相 wan2.5-t2v-preview（仅文生视频）
 - 火山方舟：豆包 Seedance 系列模型（支持文生视频和图生视频）
+- JXINCM：Sora-2 系列模型（第三方服务，固定15秒时长）
 
 火山方舟：传入图片参数时自动切换为图生视频(I2V)模式
 
-参考: https://marketplace.dify.ai/plugins/allenwriter/doubao_image
+参考: 
+- https://marketplace.dify.ai/plugins/allenwriter/doubao_image
+- https://github.com/wwwzhouhui/sora2 (JXINCM Sora2)
 """
 
 import time
@@ -19,7 +22,7 @@ from dify_plugin.entities.tool import ToolInvokeMessage
 
 
 class TextToVideoTool(Tool):
-    """文本生成视频工具 - 双平台支持"""
+    """文本生成视频工具 - 三平台支持"""
 
     # ========== 阿里云百炼配置 ==========
     ALIYUN_API_BASE = "https://dashscope.aliyuncs.com/api/v1"
@@ -34,6 +37,14 @@ class TextToVideoTool(Tool):
     VOLCENGINE_MODELS = {
         "doubao-seedance-1-0-lite-t2v-250428": {"name": "Seedance Lite T2V"},
         "doubao-seedance-1-5-pro-251215": {"name": "Seedance 1.5 Pro (推荐)"},
+    }
+
+    # ========== JXINCM (Sora2) 配置 ==========
+    # 第三方服务 - https://github.com/wwwzhouhui/sora2
+    JXINCM_API_BASE = "https://api.jxincm.cn/v1"
+    JXINCM_MODELS = {
+        "sora-2": {"name": "Sora-2 (标准)"},
+        "sora-2-pro": {"name": "Sora-2 Pro (高质量)"},
     }
     
     # 阿里云分辨率映射 - 宽高比 -> size格式(宽*高)
@@ -199,6 +210,8 @@ class TextToVideoTool(Tool):
             yield from self._invoke_aliyun(tool_parameters)
         elif provider == "volcengine":
             yield from self._invoke_volcengine(tool_parameters)
+        elif provider == "jxincm":
+            yield from self._invoke_jxincm(tool_parameters)
         else:
             yield self.create_text_message(f"❌ 错误：不支持的平台 {provider}")
 
@@ -680,6 +693,240 @@ class TextToVideoTool(Tool):
         yield self.create_json_message({
             "success": True,  # 改为 True，因为任务仍在进行中
             "provider": "volcengine",
+            "model": model,
+            "task_id": task_id,
+            "status": "running",
+            "error_message": "等待超时，任务仍在进行中，请使用query_task查询结果"
+        })
+
+    # ========== JXINCM (Sora2) 实现 ==========
+    def _invoke_jxincm(
+        self, params: dict
+    ) -> Generator[ToolInvokeMessage, None, None]:
+        """
+        调用 JXINCM Sora-2 API (第三方服务)
+        
+        API文档参考: https://github.com/wwwzhouhui/sora2
+        
+        支持的模型:
+        - sora-2: 标准质量
+        - sora-2-pro: 高质量
+        
+        注意：视频时长固定为15秒
+        """
+        # 获取凭证
+        api_key = self.runtime.credentials.get("jxincm_api_key", "")
+        if not api_key:
+            yield self.create_text_message("❌ 错误：请配置 JXINCM API Key")
+            return
+        
+        # 解析参数
+        model = params.get("model", "sora-2")
+        prompt = params.get("prompt", "")
+        orientation = params.get("orientation", "landscape")
+        watermark = params.get("watermark", False)
+        wait_for_completion = params.get("wait_for_completion", True)
+        
+        # 检查是否有图片参数（I2V 模式）
+        image_url = params.get("_image_url", "")
+        is_i2v_mode = bool(image_url)
+        image_urls = [image_url] if is_i2v_mode else []
+        
+        model_name = self.JXINCM_MODELS.get(model, {}).get("name", model)
+        mode_text = "图生视频 (I2V)" if is_i2v_mode else "文生视频 (T2V)"
+        
+        info_text = (
+            f"🚀 **提交{mode_text}任务**\n\n"
+            f"⚠️ **注意：这是第三方服务，稳定性不做保证**\n\n"
+            f"🏢 平台: JXINCM (Sora2)\n"
+            f"📝 模型: {model_name}\n"
+            f"📐 方向: {'横屏' if orientation == 'landscape' else '竖屏'}\n"
+            f"⏱️ 时长: 15秒 (固定)\n"
+        )
+        if is_i2v_mode:
+            info_text += f"🖼️ 图片: {image_url[:50]}...\n"
+        if watermark:
+            info_text += f"💧 水印: 已开启\n"
+        info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
+        
+        yield self.create_text_message(info_text)
+        
+        # 构建请求头
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # 构建请求体
+        payload = {
+            "prompt": prompt,
+            "model": model,
+            "orientation": orientation,
+            "size": "large",
+            "duration": 15,
+            "watermark": watermark,
+            "private": True,
+            "images": image_urls
+        }
+        
+        try:
+            # 提交任务
+            response = requests.post(
+                f"{self.JXINCM_API_BASE}/video/create",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                error_text = response.text
+                try:
+                    error_json = response.json()
+                    error_text = error_json.get("error", {}).get("message", error_text)
+                except Exception:
+                    pass
+                yield self.create_text_message(f"❌ 提交失败: {response.status_code} - {error_text}")
+                yield self.create_json_message({
+                    "success": False,
+                    "provider": "jxincm",
+                    "error_message": error_text
+                })
+                return
+            
+            result = response.json()
+            
+            # 获取任务ID
+            task_id = result.get("id")
+            if not task_id:
+                yield self.create_text_message(f"❌ 提交失败: 未获取到任务ID - {result}")
+                return
+            
+            yield self.create_text_message(f"✅ 任务已提交\n🔖 任务ID: `{task_id}`")
+            
+            # 是否等待完成
+            if wait_for_completion:
+                yield from self._poll_jxincm(api_key, task_id, model)
+            else:
+                yield self.create_json_message({
+                    "success": True,
+                    "provider": "jxincm",
+                    "model": model,
+                    "task_id": task_id,
+                    "status": "running"
+                })
+                
+        except requests.Timeout:
+            yield self.create_text_message("❌ 错误: 请求超时")
+        except requests.RequestException as e:
+            yield self.create_text_message(f"❌ 网络错误: {str(e)}")
+        except Exception as e:
+            yield self.create_text_message(f"❌ 错误: {str(e)}")
+
+    def _poll_jxincm(
+        self, api_key: str, task_id: str, model: str
+    ) -> Generator[ToolInvokeMessage, None, None]:
+        """
+        轮询 JXINCM 任务状态
+        
+        状态: queued, processing, completed, failed
+        """
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        for attempt in range(self.MAX_POLL_ATTEMPTS):
+            try:
+                # 查询任务状态
+                response = requests.get(
+                    f"{self.JXINCM_API_BASE}/video/query?id={task_id}",
+                    headers=headers,
+                    timeout=30
+                )
+                
+                if response.status_code != 200:
+                    yield self.create_text_message(f"❌ 查询失败: {response.status_code} - {response.text}")
+                    yield self.create_json_message({
+                        "success": False,
+                        "provider": "jxincm",
+                        "model": model,
+                        "task_id": task_id,
+                        "status": "failed",
+                        "error_message": response.text
+                    })
+                    return
+                
+                result = response.json()
+                status = result.get("status", "unknown")
+                progress = result.get("progress", 0)
+                
+                if status == "completed":
+                    # 获取视频信息
+                    detail = result.get("detail", {})
+                    video_url = detail.get("url", "")
+                    thumbnail_url = detail.get("thumbnail", "")
+                    gif_url = detail.get("gif", "")
+                    
+                    # 视频URL放在最前面，便于工作流提取
+                    yield self.create_text_message(
+                        f"{video_url}\n\n"
+                        f"---\n"
+                        f"🎉 **视频生成完成！**\n"
+                        f"📹 视频链接已在上方（可直接复制使用）\n"
+                        f"🖼️ 缩略图: {thumbnail_url}\n"
+                        f"🎬 GIF预览: {gif_url}"
+                    )
+                    # 显示视频预览
+                    if video_url:
+                        yield self.create_image_message(video_url)
+                    yield self.create_json_message({
+                        "success": True,
+                        "provider": "jxincm",
+                        "model": model,
+                        "task_id": task_id,
+                        "status": "completed",
+                        "video_url": video_url,
+                        "thumbnail_url": thumbnail_url,
+                        "gif_url": gif_url
+                    })
+                    return
+                    
+                elif status == "failed":
+                    error_msg = result.get("error", {}).get("message", "未知错误")
+                    yield self.create_text_message(f"❌ 视频生成失败: {error_msg}")
+                    yield self.create_json_message({
+                        "success": False,
+                        "provider": "jxincm",
+                        "model": model,
+                        "task_id": task_id,
+                        "status": "failed",
+                        "error_message": error_msg
+                    })
+                    return
+                    
+                else:
+                    # 每30秒输出一次进度
+                    if attempt % 6 == 0:
+                        elapsed = attempt * self.POLL_INTERVAL
+                        yield self.create_text_message(
+                            f"⏳ 正在生成... {status} ({progress}% - {elapsed}秒)"
+                        )
+                    time.sleep(self.POLL_INTERVAL)
+                    
+            except Exception as e:
+                time.sleep(self.POLL_INTERVAL)
+        
+        # 超时 - 任务仍在进行中
+        yield self.create_text_message(
+            f"⏰ 视频生成仍在进行中，已超过等待时间\n"
+            f"🔖 任务ID: `{task_id}`\n\n"
+            f"💡 请使用【查询任务状态】工具，输入以下信息查询结果：\n"
+            f"   - 平台: jxincm\n"
+            f"   - 任务ID: {task_id}"
+        )
+        yield self.create_json_message({
+            "success": True,
+            "provider": "jxincm",
             "model": model,
             "task_id": task_id,
             "status": "running",

@@ -1,17 +1,19 @@
-# AI视频生成插件
+# AI视频/图片生成插件
 
-> **版本**: v0.0.22  
+> **版本**: v0.0.32  
 > **作者**: xiaoxishui  
-> **更新日期**: 2025-12-24
+> **更新日期**: 2025-12-25
 > **变更说明**: 
-> - 🆕 新增 **豆包 Seedance 1.5 Pro** 模型支持（文生视频 + 图生视频）
-> - 🆕 Seedance 1.5 Pro 支持更高质量的视频生成
-> - 🆕 更新默认模型为 Seedance 1.5 Pro（推荐使用）
-> - 优化火山方舟模型选项排序
+> - 🆕 新增 **JXINCM (Sora2)** 第三方平台支持
+> - 🆕 支持 **Sora-2** 和 **Sora-2 Pro** 模型（文生视频 + 图生视频）
+> - 🆕 Sora2 支持15秒高质量视频生成
+> - ⚠️ JXINCM 为第三方服务，稳定性不做保证
 
 ## 功能概述
 
-这是一个Dify工具插件，支持**阿里云百炼**和**火山引擎**双平台的AI视频生成功能。
+这是一个Dify工具插件，支持**阿里云百炼**、**火山引擎**和**JXINCM(Sora2)**三大平台的AI视频和图片生成功能。
+
+> ⚠️ **注意**: JXINCM (Sora2) 是第三方代理服务，稳定性和持续性不做保证。请谨慎在生产环境使用。
 
 > **参考**: [Doubao Image and Video Generator](https://marketplace.dify.ai/plugins/allenwriter/doubao_image)
 
@@ -19,10 +21,13 @@
 
 - 📝 **文本生成视频 (T2V)** - 根据文本描述生成视频
 - 🖼️ **图片生成视频 (I2V)** - 基于输入图片生成视频
+- 🎨 **文本生成图片 (T2I)** - 根据文本描述生成图片（火山引擎 Seedream）
 - 🔍 **任务状态查询** - 查询视频生成任务的状态和结果
-- 📐 **多宽高比支持** - 16:9、9:16、4:3、1:1
+- 📐 **多尺寸支持** - 支持多种视频宽高比和图片尺寸
 
 ### 支持的模型
+
+#### 视频生成模型
 
 | 平台 | 模型ID | 功能 | 说明 |
 |------|--------|------|------|
@@ -33,6 +38,15 @@
 | 火山引擎 | `doubao-seedance-1-5-pro-251215` | 文生视频 + 图生视频 | Seedance 1.5 Pro (最新，推荐) |
 | 火山引擎 | `doubao-seedance-1-0-lite-t2v-250428` | 文生视频 | Seedance Lite T2V |
 | 火山引擎 | `doubao-seaweed-241128` | 图生视频 | Seaweed I2V |
+| JXINCM | `sora-2` | 文生视频 + 图生视频 | Sora-2 (标准) ⚠️第三方 |
+| JXINCM | `sora-2-pro` | 文生视频 + 图生视频 | Sora-2 Pro (高质量) ⚠️第三方 |
+
+#### 图片生成模型
+
+| 平台 | 模型ID | 功能 | 说明 |
+|------|--------|------|------|
+| 火山引擎 | `doubao-seedream-4-5-251128` | 文生图 | Seedream 4.5 (最新，推荐) |
+| 火山引擎 | `doubao-seedream-3-0-t2i-250110` | 文生图 | Seedream 3.0 T2I |
 
 #### 通义万相 2.6 vs 2.5 对比
 
@@ -61,6 +75,13 @@
 
 > **测试 API Key**: `719f1aec-26af-4bac-b1df-1fc26a95df73`（仅供测试使用）
 
+#### JXINCM (Sora2) ⚠️第三方服务
+1. 访问 JXINCM 平台注册账号
+2. 获取 API Key
+3. 参考: [GitHub - wwwzhouhui/sora2](https://github.com/wwwzhouhui/sora2)
+
+> ⚠️ **风险提示**: JXINCM 是第三方代理服务，非官方 API。稳定性和持续性不做保证，请谨慎使用。
+
 ### 2. 安装插件
 
 1. 在 Dify 插件市场搜索 "AI视频生成"
@@ -76,6 +97,7 @@
 | 阿里云百炼 API Key | DashScope API 密钥 | 否 |
 | 火山引擎 API Key | 视觉智能平台 API 密钥 | 否 |
 | 火山引擎 Endpoint ID | Ark 推理接入点 ID | 否 |
+| JXINCM API Key | Sora2 第三方服务 API 密钥 | 否 |
 | Dify 内部访问地址 | 插件访问 Dify 文件服务的内部 URL | 否 |
 
 #### ⚠️ 关于 "Dify 内部访问地址" 配置
@@ -118,6 +140,33 @@
   prompt: "让图片动起来，添加微风吹动的效果"
   duration: "5"
   wait_for_completion: true
+```
+
+### JXINCM (Sora2) 视频生成 ⚠️第三方
+
+```yaml
+工具: 视频生成
+参数:
+  provider: jxincm                               # 第三方平台
+  model: sora-2-pro                              # Sora-2 Pro 高质量模型
+  prompt: "一只金毛犬在阳光明媚的公园里奔跑"
+  orientation: landscape                          # 横屏/竖屏
+  watermark: false                                # 是否添加水印
+  wait_for_completion: true
+# 注意：视频时长固定为15秒
+```
+
+### 文本生成图片
+
+```yaml
+工具: 文本生成图片
+参数:
+  model: doubao-seedream-4-5-251128         # Seedream 4.5 模型（推荐）
+  prompt: "一只可爱的小猫在阳光下玩耍，水彩风格，柔和的色调"
+  negative_prompt: "模糊、低质量、变形"      # 负面提示词（可选）
+  size: "1024x1024"                          # 图片尺寸
+  num_images: 1                              # 生成数量
+  guidance_scale: 7.5                        # 引导系数（可选）
 ```
 
 ### 查询任务状态
@@ -252,6 +301,8 @@ ai_video_generation/
     ├── text_to_video.yaml # 文生视频配置
     ├── image_to_video.py  # 图生视频工具
     ├── image_to_video.yaml# 图生视频配置
+    ├── text_to_image.py   # 文生图工具（Seedream）
+    ├── text_to_image.yaml # 文生图配置
     ├── query_task.py      # 任务查询工具
     └── query_task.yaml    # 任务查询配置
 ```

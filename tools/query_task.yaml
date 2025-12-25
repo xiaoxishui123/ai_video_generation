@@ -1,7 +1,7 @@
 description:
   human:
-    zh_Hans: 查询视频生成任务的状态和结果，支持阿里云百炼和火山方舟平台
-    en_US: Query video generation task status and result, supporting Aliyun Bailian and Volcengine Ark
+    zh_Hans: 查询视频生成任务的状态和结果，支持阿里云百炼、火山方舟和JXINCM(Sora2)平台
+    en_US: Query video generation task status and result, supporting Aliyun, Volcengine and JXINCM(Sora2)
   llm: Query the status and result of a video generation task. Returns task status, video URL when completed.
 extra:
   python:
@@ -33,6 +33,10 @@ parameters:
     label:
       zh_Hans: 火山方舟
       en_US: Volcengine Ark
+  - value: jxincm
+    label:
+      zh_Hans: JXINCM (Sora2) ⚠️第三方
+      en_US: JXINCM (Sora2) ⚠️Third-party
 - name: task_id
   type: string
   required: true
