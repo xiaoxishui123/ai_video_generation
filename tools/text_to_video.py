@@ -247,7 +247,11 @@ class TextToVideoTool(Tool):
         # wan2.6 专属参数
         prompt_extend = params.get("prompt_extend", False)  # 智能扩写
         multi_shot = params.get("multi_shot", False)  # 智能镜头（多镜头叙事）
-        bgm_generate = params.get("bgm_generate", False)  # 生成配音/背景音乐
+        
+        # 音频相关参数（wan2.5/wan2.6 支持）
+        enable_audio = params.get("enable_audio", False)  # 启用自动配音（语音旁白）
+        bgm_generate = params.get("bgm_generate", False)  # 生成背景音乐
+        narration = params.get("narration", "")  # 旁白文本
         
         # 判断是否为 wan2.6 模型
         is_wan26 = model.startswith("wan2.6")
@@ -295,10 +299,15 @@ class TextToVideoTool(Tool):
                 features.append("智能扩写")
             if multi_shot:
                 features.append("智能镜头")
-            if bgm_generate:
-                features.append("生成配音")
             if features:
                 info_text += f"✨ 增强功能: {', '.join(features)}\n"
+        # 音频相关信息
+        if enable_audio:
+            info_text += f"🎤 配音: 自动生成\n"
+        if bgm_generate:
+            info_text += f"🎵 背景音乐: 自动生成\n"
+        if narration:
+            info_text += f"📜 旁白: {narration[:30]}{'...' if len(narration) > 30 else ''}\n"
         info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         
         yield self.create_text_message(info_text)
@@ -319,6 +328,12 @@ class TextToVideoTool(Tool):
             }
         }
         
+        # wan2.5/wan2.6 支持音频参数
+        if model.startswith("wan2.5") or is_wan26:
+            # audio参数：True=启用自动配音（语音旁白）
+            if enable_audio:
+                payload["parameters"]["audio"] = True
+        
         # wan2.6 支持额外参数
         if is_wan26:
             payload["parameters"]["duration"] = int(duration)
@@ -328,9 +343,13 @@ class TextToVideoTool(Tool):
             # 智能镜头：多镜头叙事，保持主体一致
             if multi_shot:
                 payload["parameters"]["multi_shot"] = True
-            # 生成配音/背景音乐：音画同步
+            # 生成背景音乐：音画同步
             if bgm_generate:
                 payload["parameters"]["bgm_generate"] = True
+            # 如果有旁白文本，将其合并到prompt中帮助模型理解配音内容
+            if narration and enable_audio:
+                enhanced_prompt = f"{prompt}。旁白内容：{narration}"
+                payload["input"]["prompt"] = enhanced_prompt
         
         try:
             # 提交任务 - 使用 video-synthesis 端点

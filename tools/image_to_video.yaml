@@ -212,10 +212,21 @@ parameters:
     zh_Hans: 启用自动配音
     en_US: Enable Auto Audio
   human_description:
-    zh_Hans: 是否为视频自动生成配音（仅通义万相2.5/2.6支持）
-    en_US: Whether to automatically generate audio for the video (only Wanxiang 2.5/2.6 supported)
+    zh_Hans: 【仅通义万相2.5/2.6】为视频自动生成语音旁白
+    en_US: "[Wanxiang 2.5/2.6 Only] Auto generate voice-over for the video"
   form: form
   default: true
+- name: bgm_generate
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 生成背景音乐
+    en_US: Generate BGM
+  human_description:
+    zh_Hans: 【仅通义万相2.6】自动生成背景音乐，实现音画同步
+    en_US: "[Wanxiang 2.6 Only] Auto generate background music for audio-visual sync"
+  form: form
+  default: false
 - name: audio_url
   type: string
   required: false

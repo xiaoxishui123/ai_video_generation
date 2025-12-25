@@ -305,6 +305,7 @@ class ImageToVideoTool(Tool):
         # wan2.6 特有参数
         prompt_extend = params.get("prompt_extend", False)  # 智能扩写
         multi_shot = params.get("multi_shot", False)  # 智能镜头
+        bgm_generate = params.get("bgm_generate", False)  # 生成背景音乐
         
         # 验证 audio_url 是否为有效 URL（必须以 http:// 或 https:// 开头）
         audio_url = ""
@@ -376,6 +377,8 @@ class ImageToVideoTool(Tool):
             info_text += f"🎤 配音: 自动生成\n"
         else:
             info_text += f"🔇 音频: 无声视频\n"
+        if bgm_generate and is_wan26:
+            info_text += f"🎵 背景音乐: 自动生成\n"
         if narration:
             info_text += f"📜 旁白: {narration[:30]}...\n"
         info_text += f"💬 描述: {prompt[:50]}..."
@@ -426,6 +429,9 @@ class ImageToVideoTool(Tool):
             # 智能镜头 - 多镜头叙事
             if multi_shot:
                 payload["parameters"]["multi_shot"] = True
+            # 生成背景音乐 - 音画同步
+            if bgm_generate:
+                payload["parameters"]["bgm_generate"] = True
             # 如果有旁白文本，可以将其合并到prompt中帮助模型理解配音内容
             # 注意：wan2.6会根据prompt和画面自动生成配音
             if narration and enable_audio:
