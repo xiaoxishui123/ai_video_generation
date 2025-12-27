@@ -87,7 +87,8 @@ zip -rD "$OUTPUT_FILE" . \
     -x "provider/__pycache__/*" \
     -x "*.pyc" \
     -x ".gitignore" \
-    -x "build.sh"
+    -x "build.sh" \
+    -x "*.difypkg"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}✅ 打包成功！${NC}"
