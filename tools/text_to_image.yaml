@@ -1,8 +1,8 @@
 description:
   human:
-    zh_Hans: AI图像生成工具。使用火山引擎豆包 Seedream 模型根据文本描述生成图片
-    en_US: AI Image Generation. Generate images from text descriptions using Volcengine Doubao Seedream models
-  llm: Generate images from text descriptions using Volcengine Ark Seedream models.
+    zh_Hans: AI图像生成工具。使用火山引擎豆包 Seedream 模型根据文本描述生成图片，支持参考图生图
+    en_US: AI Image Generation. Generate images from text descriptions using Volcengine Doubao Seedream models, supports reference image
+  llm: Generate images from text or reference images using Volcengine Ark Seedream models. Supports image-to-image generation with up to 14 reference images.
 extra:
   python:
     source: tools/text_to_image.py
@@ -54,6 +54,17 @@ parameters:
     zh_Hans: 描述不希望出现在图片中的内容
     en_US: Describe what you don't want in the image
   llm_description: 负面提示词，描述不希望出现的内容，如"模糊、低质量、变形"
+  form: llm
+- name: reference_images
+  type: string
+  required: false
+  label:
+    zh_Hans: 参考图URL
+    en_US: Reference Image URLs
+  human_description:
+    zh_Hans: 参考图片的URL地址，多个URL用英文逗号分隔（最多14张，仅Seedream 4.5支持）
+    en_US: Reference image URLs, separate multiple URLs with commas (max 14 images, only Seedream 4.5 supported)
+  llm_description: 参考图片的URL地址，用于图生图功能。支持单个URL或多个URL（用逗号分隔）。模型会参考这些图片的风格、角色、场景等元素来生成新图片。
   form: llm
 - name: size
   type: select

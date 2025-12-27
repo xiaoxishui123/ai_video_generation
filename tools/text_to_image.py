@@ -1,14 +1,19 @@
 """
-文本生成图片工具 (Text-to-Image)
+文本/参考图生成图片工具 (Text-to-Image / Image-to-Image)
 
-使用火山引擎豆包 Seedream 系列模型根据文本描述生成图片。
+使用火山引擎豆包 Seedream 系列模型根据文本描述或参考图生成图片。
 
 支持的模型:
-- doubao-seedream-4-5-251128: Seedream 4.5 (推荐，最新版本)
-- doubao-seedream-3-0-t2i-250110: Seedream 3.0 T2I
+- doubao-seedream-4-5-251128: Seedream 4.5 (推荐，最新版本，支持参考图)
+- doubao-seedream-3-0-t2i-250110: Seedream 3.0 T2I (仅支持文生图)
+
+功能说明:
+- 文生图: 仅使用 prompt 生成图片
+- 图生图: 使用 prompt + reference_images 参考图生成图片
+- Seedream 4.5 支持最多 14 张参考图
 
 API 文档参考:
-- 火山引擎 Ark API: https://www.volcengine.com/docs/82379/1298454
+- 火山引擎 Ark API: https://www.volcengine.com/docs/82379/1541523
 """
 
 import requests
@@ -58,12 +63,25 @@ class TextToImageTool(Tool):
             
         prompt = tool_parameters.get("prompt", "").strip()
         negative_prompt = tool_parameters.get("negative_prompt", "").strip()
+        reference_images_str = tool_parameters.get("reference_images", "").strip()
         size = tool_parameters.get("size", self.DEFAULT_SIZE)
         num_images = int(tool_parameters.get("num_images", 1))
         seed = tool_parameters.get("seed")
         guidance_scale = tool_parameters.get("guidance_scale")
         watermark = tool_parameters.get("watermark", False)
         response_format = tool_parameters.get("response_format", "url")
+        
+        # 解析参考图URL列表
+        reference_images = []
+        if reference_images_str:
+            # 支持逗号分隔的多个URL
+            for url in reference_images_str.split(","):
+                url = url.strip()
+                if url and (url.startswith("http://") or url.startswith("https://")):
+                    reference_images.append(url)
+            # 限制最多14张参考图
+            if len(reference_images) > 14:
+                reference_images = reference_images[:14]
         
         # 参数验证
         if not prompt:
@@ -79,13 +97,17 @@ class TextToImageTool(Tool):
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         
         # 构建提示信息
+        generation_mode = "图生图" if reference_images else "文生图"
         info_text = (
             f"🎨 **提交图片生成任务**\n\n"
             f"🏢 平台: 火山引擎\n"
             f"📝 模型: {model_name}\n"
+            f"🔄 模式: {generation_mode}\n"
             f"📐 尺寸: {size}\n"
             f"🖼️ 数量: {num_images}张\n"
         )
+        if reference_images:
+            info_text += f"🖼️ 参考图: {len(reference_images)}张\n"
         if seed is not None:
             info_text += f"🎲 种子: {seed}\n"
         if guidance_scale is not None:
@@ -112,6 +134,14 @@ class TextToImageTool(Tool):
             "n": num_images,
             "response_format": response_format
         }
+        
+        # 添加参考图参数（图生图功能）
+        if reference_images:
+            # 单张图片传字符串，多张图片传数组
+            if len(reference_images) == 1:
+                payload["image"] = reference_images[0]
+            else:
+                payload["image"] = reference_images
         
         # 添加可选参数
         if negative_prompt:
@@ -196,16 +226,20 @@ class TextToImageTool(Tool):
             )
             
             # 返回 JSON 结果
-            yield self.create_json_message({
+            result_json = {
                 "success": True,
                 "provider": "volcengine",
                 "model": model,
+                "mode": "image_to_image" if reference_images else "text_to_image",
                 "prompt": prompt,
                 "size": size,
                 "num_images": len(image_urls),
                 "image_urls": image_urls,
                 "response_format": response_format
-            })
+            }
+            if reference_images:
+                result_json["reference_images"] = reference_images
+            yield self.create_json_message(result_json)
                 
         except requests.Timeout:
             yield self.create_text_message("❌ 错误: 请求超时，图片生成时间较长，请稍后重试")
