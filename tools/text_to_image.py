@@ -51,15 +51,10 @@ class TextToImageTool(Tool):
             yield self.create_text_message("❌ 错误：请配置火山引擎 API Key")
             return
         
-        # 获取 endpoint_id，如果配置了则使用 endpoint_id，否则使用 model 名称
-        endpoint_id = self.runtime.credentials.get("volcengine_endpoint_id", "").strip()
-        
-        # 解析参数
+        # 解析参数 - 直接使用工作流配置的模型
+        # 注意：Seedream 是火山引擎的公共图像模型，不需要通过 endpoint 访问
+        # volcengine_endpoint_id 仅用于视频生成等需要自定义 endpoint 的场景
         model = tool_parameters.get("model", "doubao-seedream-4-5-251128")
-        
-        # 如果配置了 endpoint_id，则使用它
-        if endpoint_id:
-            model = endpoint_id
             
         prompt = tool_parameters.get("prompt", "").strip()
         negative_prompt = tool_parameters.get("negative_prompt", "").strip()
