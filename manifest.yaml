@@ -15,7 +15,7 @@ meta:
     entrypoint: main
     language: python
     version: "3.12"
-  version: 0.0.40
+  version: 0.0.41
 name: ai_video_generation
 plugins:
   tools:
@@ -32,6 +32,6 @@ resource:
       enabled: true
 tags:
   - videos
-  - images
+  - image
 type: plugin
-version: 0.0.40
+version: 0.0.41
