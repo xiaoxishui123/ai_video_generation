@@ -73,47 +73,55 @@ parameters:
     zh_Hans: 图片尺寸
     en_US: Image Size
   human_description:
-    zh_Hans: 生成图片的尺寸规格。选择"自动"会根据参考图尺寸自动匹配最接近的支持尺寸
-    en_US: Size of the generated image. Select "Auto" to automatically match the closest supported size based on reference image
+    zh_Hans: 生成图片的尺寸规格。图生图模式要求至少2K尺寸，小尺寸会自动调整为2K
+    en_US: Size of the generated image. Image-to-image mode requires at least 2K size, smaller sizes will be auto-adjusted
   form: form
   default: "auto"
   options:
   - value: "auto"
     label:
-      zh_Hans: 🔄 自动 (根据参考图)
-      en_US: 🔄 Auto (from reference image)
+      zh_Hans: 🔄 自动 (智能匹配)
+      en_US: 🔄 Auto (smart match)
+  - value: "2k"
+    label:
+      zh_Hans: ⭐ 2K (图生图推荐)
+      en_US: ⭐ 2K (recommended for I2I)
+  - value: "4k"
+    label:
+      zh_Hans: 4K (超高清)
+      en_US: 4K (Ultra HD)
   - value: "512x512"
     label:
-      zh_Hans: 512x512 (小)
-      en_US: 512x512 (Small)
+      zh_Hans: 512x512 (小，仅文生图)
+      en_US: 512x512 (Small, T2I only)
   - value: "768x768"
     label:
-      zh_Hans: 768x768 (中)
-      en_US: 768x768 (Medium)
+      zh_Hans: 768x768 (中，仅文生图)
+      en_US: 768x768 (Medium, T2I only)
   - value: "1024x1024"
     label:
-      zh_Hans: 1024x1024 (标准)
-      en_US: 1024x1024 (Standard)
+      zh_Hans: 1024x1024 (标准，仅文生图)
+      en_US: 1024x1024 (Standard, T2I only)
   - value: "1280x720"
     label:
-      zh_Hans: 1280x720 (16:9 横屏)
-      en_US: 1280x720 (16:9 Landscape)
+      zh_Hans: 1280x720 (16:9，仅文生图)
+      en_US: 1280x720 (16:9, T2I only)
   - value: "720x1280"
     label:
-      zh_Hans: 720x1280 (9:16 竖屏)
-      en_US: 720x1280 (9:16 Portrait)
+      zh_Hans: 720x1280 (9:16，仅文生图)
+      en_US: 720x1280 (9:16, T2I only)
   - value: "1536x1024"
     label:
-      zh_Hans: 1536x1024 (3:2 横屏)
-      en_US: 1536x1024 (3:2 Landscape)
+      zh_Hans: 1536x1024 (3:2，仅文生图)
+      en_US: 1536x1024 (3:2, T2I only)
   - value: "1024x1536"
     label:
-      zh_Hans: 1024x1536 (2:3 竖屏)
-      en_US: 1024x1536 (2:3 Portrait)
+      zh_Hans: 1024x1536 (2:3，仅文生图)
+      en_US: 1024x1536 (2:3, T2I only)
   - value: "2048x2048"
     label:
-      zh_Hans: 2048x2048 (2K)
-      en_US: 2048x2048 (2K)
+      zh_Hans: 2048x2048 (2K方形)
+      en_US: 2048x2048 (2K Square)
 - name: num_images
   type: select
   required: false

@@ -38,7 +38,8 @@ class TextToImageTool(Tool):
     }
     
     # 火山引擎支持的尺寸列表（宽x高）
-    SUPPORTED_SIZES = [
+    # 文生图模式：支持所有尺寸
+    SUPPORTED_SIZES_T2I = [
         (512, 512),
         (768, 768),
         (1024, 1024),
@@ -49,8 +50,22 @@ class TextToImageTool(Tool):
         (2048, 2048),
     ]
     
+    # 图生图模式：要求至少 3686400 像素（约1920x1920）
+    # 只支持较大尺寸
+    SUPPORTED_SIZES_I2I = [
+        (2048, 2048),      # 4,194,304 像素
+        (2560, 1440),      # 3,686,400 像素 (16:9)
+        (1440, 2560),      # 3,686,400 像素 (9:16)
+        (2048, 1536),      # 3,145,728 像素 - 可能不够，但保留
+        (1536, 2048),      # 3,145,728 像素
+    ]
+    
+    # 图生图最小像素要求
+    I2I_MIN_PIXELS = 3686400
+    
     # 默认参数
     DEFAULT_SIZE = "1024x1024"
+    DEFAULT_SIZE_I2I = "2k"  # 图生图默认使用 2k
     DEFAULT_GUIDANCE_SCALE = 7.5
     
     def _get_image_size_from_url(self, url: str) -> Optional[Tuple[int, int]]:
@@ -182,24 +197,28 @@ class TextToImageTool(Tool):
         
         return None
     
-    def _find_closest_supported_size(self, width: int, height: int) -> str:
+    def _find_closest_supported_size(self, width: int, height: int, is_i2i: bool = False) -> str:
         """
         找到最接近的支持尺寸
         
         Args:
             width: 原始宽度
             height: 原始高度
+            is_i2i: 是否为图生图模式（需要更大尺寸）
             
         Returns:
-            最接近的支持尺寸字符串，如 "1024x1024"
+            最接近的支持尺寸字符串，如 "1024x1024" 或 "2k"
         """
+        # 根据模式选择支持的尺寸列表
+        supported_sizes = self.SUPPORTED_SIZES_I2I if is_i2i else self.SUPPORTED_SIZES_T2I
+        
         # 计算原始宽高比
         original_ratio = width / height
         
         best_size = None
         best_score = float('inf')
         
-        for sw, sh in self.SUPPORTED_SIZES:
+        for sw, sh in supported_sizes:
             # 计算支持尺寸的宽高比
             supported_ratio = sw / sh
             
@@ -219,8 +238,12 @@ class TextToImageTool(Tool):
                 best_size = (sw, sh)
         
         if best_size:
+            # 图生图模式：使用 2k 格式（更可靠）
+            if is_i2i:
+                return "2k"
             return f"{best_size[0]}x{best_size[1]}"
-        return self.DEFAULT_SIZE
+        
+        return self.DEFAULT_SIZE_I2I if is_i2i else self.DEFAULT_SIZE
 
     def _invoke(
         self, tool_parameters: dict[str, Any]
@@ -261,6 +284,9 @@ class TextToImageTool(Tool):
             if len(reference_images) > 14:
                 reference_images = reference_images[:14]
         
+        # 判断是否为图生图模式（有参考图）
+        is_i2i_mode = len(reference_images) > 0
+        
         # 参数验证
         if not prompt:
             yield self.create_text_message("❌ 错误：图片描述不能为空")
@@ -270,6 +296,8 @@ class TextToImageTool(Tool):
         # 确保 size 是有效格式: WIDTHxHEIGHT, 1k, 2k, 4k, auto
         valid_size = False
         auto_size_detected = False
+        size_adjusted_for_i2i = False
+        orig_w, orig_h = 0, 0
         size_str = str(size).strip().lower() if size else ""
         
         # 检查是否需要自动获取尺寸
@@ -279,7 +307,7 @@ class TextToImageTool(Tool):
                 detected_size = self._get_image_size_from_url(reference_images[0])
                 if detected_size:
                     orig_w, orig_h = detected_size
-                    size = self._find_closest_supported_size(orig_w, orig_h)
+                    size = self._find_closest_supported_size(orig_w, orig_h, is_i2i=is_i2i_mode)
                     valid_size = True
                     auto_size_detected = True
         
@@ -287,25 +315,55 @@ class TextToImageTool(Tool):
         if not valid_size and size_str:
             if size_str in ['1k', '2k', '4k']:
                 valid_size = True
+                size = size_str
             elif 'x' in size_str:
                 try:
                     w, h = map(int, size_str.split("x"))
                     if w > 0 and h > 0:
                         valid_size = True
+                        size = size_str
                 except ValueError:
                     pass
         
         if not valid_size:
-            # 无效的 size 格式，使用默认值
-            size = self.DEFAULT_SIZE
+            # 无效的 size 格式，根据模式使用默认值
+            size = self.DEFAULT_SIZE_I2I if is_i2i_mode else self.DEFAULT_SIZE
+        
+        # 图生图模式：强制检查并调整尺寸
+        # 火山引擎图生图要求至少 3686400 像素
+        if is_i2i_mode:
+            size_lower = str(size).lower()
+            needs_adjustment = False
+            
+            # 检查当前尺寸是否满足要求
+            if size_lower in ['1k', '2k', '4k']:
+                # 1k 不满足，2k 和 4k 满足
+                if size_lower == '1k':
+                    needs_adjustment = True
+            elif 'x' in size_lower:
+                try:
+                    w, h = map(int, size_lower.split("x"))
+                    pixels = w * h
+                    if pixels < self.I2I_MIN_PIXELS:
+                        needs_adjustment = True
+                except ValueError:
+                    needs_adjustment = True
+            else:
+                needs_adjustment = True
+            
+            if needs_adjustment:
+                size_adjusted_for_i2i = True
+                size = "2k"  # 图生图模式强制使用 2k
         
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         
         # 构建提示信息
-        generation_mode = "图生图" if reference_images else "文生图"
+        generation_mode = "图生图" if is_i2i_mode else "文生图"
         size_info = f"{size}"
-        if auto_size_detected:
+        if auto_size_detected and orig_w > 0:
             size_info += f" (自动检测: {orig_w}x{orig_h} → {size})"
+        elif size_adjusted_for_i2i:
+            size_info += f" (图生图模式自动调整为 2k)"
         
         info_text = (
             f"🎨 **提交图片生成任务**\n\n"
