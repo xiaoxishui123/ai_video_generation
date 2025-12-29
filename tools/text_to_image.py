@@ -11,13 +11,15 @@
 - 文生图: 仅使用 prompt 生成图片
 - 图生图: 使用 prompt + reference_images 参考图生成图片
 - Seedream 4.5 支持最多 14 张参考图
+- 支持自动获取参考图尺寸（当 size 设置为 "auto" 时）
 
 API 文档参考:
 - 火山引擎 Ark API: https://www.volcengine.com/docs/82379/1541523
 """
 
 import requests
-from typing import Any, Generator
+import struct
+from typing import Any, Generator, Optional, Tuple
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
 
@@ -35,9 +37,190 @@ class TextToImageTool(Tool):
         "doubao-seedream-3-0-t2i-250110": {"name": "Seedream 3.0 T2I"},
     }
     
+    # 火山引擎支持的尺寸列表（宽x高）
+    SUPPORTED_SIZES = [
+        (512, 512),
+        (768, 768),
+        (1024, 1024),
+        (1280, 720),
+        (720, 1280),
+        (1536, 1024),
+        (1024, 1536),
+        (2048, 2048),
+    ]
+    
     # 默认参数
     DEFAULT_SIZE = "1024x1024"
     DEFAULT_GUIDANCE_SCALE = 7.5
+    
+    def _get_image_size_from_url(self, url: str) -> Optional[Tuple[int, int]]:
+        """
+        从图片 URL 获取图片尺寸（宽, 高）
+        只下载图片头部信息，不下载完整图片，节省带宽
+        
+        Args:
+            url: 图片的 URL 地址
+            
+        Returns:
+            (width, height) 或 None（获取失败时）
+        """
+        try:
+            # 设置请求头，只获取部分内容
+            headers = {
+                'Range': 'bytes=0-65535',  # 只获取前64KB，足够解析大多数图片头部
+                'User-Agent': 'Mozilla/5.0'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10, stream=True)
+            
+            # 读取图片数据
+            data = response.content
+            
+            # 尝试识别图片格式并获取尺寸
+            size = self._get_image_dimensions(data)
+            return size
+            
+        except Exception:
+            return None
+    
+    def _get_image_dimensions(self, data: bytes) -> Optional[Tuple[int, int]]:
+        """
+        从图片二进制数据解析图片尺寸
+        支持 PNG, JPEG, GIF, WEBP 格式
+        
+        Args:
+            data: 图片的二进制数据（至少需要头部信息）
+            
+        Returns:
+            (width, height) 或 None
+        """
+        # PNG 格式: 前8字节是签名，接下来是IHDR块
+        if data[:8] == b'\x89PNG\r\n\x1a\n':
+            # IHDR 块在第 16-24 字节包含宽度和高度
+            if len(data) >= 24:
+                width = struct.unpack('>I', data[16:20])[0]
+                height = struct.unpack('>I', data[20:24])[0]
+                return (width, height)
+        
+        # JPEG 格式
+        if data[:2] == b'\xff\xd8':
+            # JPEG 需要解析 SOF 标记
+            try:
+                return self._get_jpeg_dimensions(data)
+            except Exception:
+                pass
+        
+        # GIF 格式
+        if data[:6] in (b'GIF87a', b'GIF89a'):
+            if len(data) >= 10:
+                width = struct.unpack('<H', data[6:8])[0]
+                height = struct.unpack('<H', data[8:10])[0]
+                return (width, height)
+        
+        # WEBP 格式
+        if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+            try:
+                return self._get_webp_dimensions(data)
+            except Exception:
+                pass
+        
+        return None
+    
+    def _get_jpeg_dimensions(self, data: bytes) -> Optional[Tuple[int, int]]:
+        """解析 JPEG 图片尺寸"""
+        i = 2
+        while i < len(data) - 9:
+            if data[i] != 0xff:
+                i += 1
+                continue
+            
+            marker = data[i + 1]
+            
+            # SOF 标记 (0xC0-0xCF, 除了 0xC4, 0xC8, 0xCC)
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                         0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                if i + 9 <= len(data):
+                    height = struct.unpack('>H', data[i + 5:i + 7])[0]
+                    width = struct.unpack('>H', data[i + 7:i + 9])[0]
+                    return (width, height)
+            
+            # 跳过当前标记块
+            if i + 4 <= len(data):
+                length = struct.unpack('>H', data[i + 2:i + 4])[0]
+                i += 2 + length
+            else:
+                break
+        
+        return None
+    
+    def _get_webp_dimensions(self, data: bytes) -> Optional[Tuple[int, int]]:
+        """解析 WEBP 图片尺寸"""
+        if len(data) < 30:
+            return None
+        
+        # VP8 格式
+        if data[12:16] == b'VP8 ':
+            if len(data) >= 30:
+                width = struct.unpack('<H', data[26:28])[0] & 0x3fff
+                height = struct.unpack('<H', data[28:30])[0] & 0x3fff
+                return (width, height)
+        
+        # VP8L 格式 (无损)
+        if data[12:16] == b'VP8L':
+            if len(data) >= 25:
+                bits = struct.unpack('<I', data[21:25])[0]
+                width = (bits & 0x3fff) + 1
+                height = ((bits >> 14) & 0x3fff) + 1
+                return (width, height)
+        
+        # VP8X 格式 (扩展)
+        if data[12:16] == b'VP8X':
+            if len(data) >= 30:
+                width = struct.unpack('<I', data[24:27] + b'\x00')[0] + 1
+                height = struct.unpack('<I', data[27:30] + b'\x00')[0] + 1
+                return (width, height)
+        
+        return None
+    
+    def _find_closest_supported_size(self, width: int, height: int) -> str:
+        """
+        找到最接近的支持尺寸
+        
+        Args:
+            width: 原始宽度
+            height: 原始高度
+            
+        Returns:
+            最接近的支持尺寸字符串，如 "1024x1024"
+        """
+        # 计算原始宽高比
+        original_ratio = width / height
+        
+        best_size = None
+        best_score = float('inf')
+        
+        for sw, sh in self.SUPPORTED_SIZES:
+            # 计算支持尺寸的宽高比
+            supported_ratio = sw / sh
+            
+            # 计算宽高比差异（使用对数差异，对称处理）
+            ratio_diff = abs(original_ratio - supported_ratio) / max(original_ratio, supported_ratio)
+            
+            # 计算面积差异
+            original_area = width * height
+            supported_area = sw * sh
+            area_diff = abs(original_area - supported_area) / max(original_area, supported_area)
+            
+            # 综合得分（宽高比更重要）
+            score = ratio_diff * 2 + area_diff
+            
+            if score < best_score:
+                best_score = score
+                best_size = (sw, sh)
+        
+        if best_size:
+            return f"{best_size[0]}x{best_size[1]}"
+        return self.DEFAULT_SIZE
 
     def _invoke(
         self, tool_parameters: dict[str, Any]
@@ -83,22 +266,53 @@ class TextToImageTool(Tool):
             yield self.create_text_message("❌ 错误：图片描述不能为空")
             return
         
-        # 解析尺寸
-        try:
-            width, height = map(int, size.split("x"))
-        except ValueError:
-            width, height = 1024, 1024
+        # 解析尺寸 - 增强验证
+        # 确保 size 是有效格式: WIDTHxHEIGHT, 1k, 2k, 4k, auto
+        valid_size = False
+        auto_size_detected = False
+        size_str = str(size).strip().lower() if size else ""
+        
+        # 检查是否需要自动获取尺寸
+        if size_str == "auto" or not size_str:
+            # 尝试从参考图自动获取尺寸
+            if reference_images:
+                detected_size = self._get_image_size_from_url(reference_images[0])
+                if detected_size:
+                    orig_w, orig_h = detected_size
+                    size = self._find_closest_supported_size(orig_w, orig_h)
+                    valid_size = True
+                    auto_size_detected = True
+        
+        # 如果不是 auto 模式，验证 size 格式
+        if not valid_size and size_str:
+            if size_str in ['1k', '2k', '4k']:
+                valid_size = True
+            elif 'x' in size_str:
+                try:
+                    w, h = map(int, size_str.split("x"))
+                    if w > 0 and h > 0:
+                        valid_size = True
+                except ValueError:
+                    pass
+        
+        if not valid_size:
+            # 无效的 size 格式，使用默认值
+            size = self.DEFAULT_SIZE
         
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         
         # 构建提示信息
         generation_mode = "图生图" if reference_images else "文生图"
+        size_info = f"{size}"
+        if auto_size_detected:
+            size_info += f" (自动检测: {orig_w}x{orig_h} → {size})"
+        
         info_text = (
             f"🎨 **提交图片生成任务**\n\n"
             f"🏢 平台: 火山引擎\n"
             f"📝 模型: {model_name}\n"
             f"🔄 模式: {generation_mode}\n"
-            f"📐 尺寸: {size}\n"
+            f"📐 尺寸: {size_info}\n"
             f"🖼️ 数量: {num_images}张\n"
         )
         if reference_images:

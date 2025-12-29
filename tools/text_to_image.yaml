@@ -73,11 +73,15 @@ parameters:
     zh_Hans: 图片尺寸
     en_US: Image Size
   human_description:
-    zh_Hans: 生成图片的尺寸规格
-    en_US: Size of the generated image
+    zh_Hans: 生成图片的尺寸规格。选择"自动"会根据参考图尺寸自动匹配最接近的支持尺寸
+    en_US: Size of the generated image. Select "Auto" to automatically match the closest supported size based on reference image
   form: form
-  default: "1024x1024"
+  default: "auto"
   options:
+  - value: "auto"
+    label:
+      zh_Hans: 🔄 自动 (根据参考图)
+      en_US: 🔄 Auto (from reference image)
   - value: "512x512"
     label:
       zh_Hans: 512x512 (小)
