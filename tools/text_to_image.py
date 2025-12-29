@@ -19,7 +19,8 @@ API 文档参考:
 
 import requests
 import struct
-from typing import Any, Generator, Optional, Tuple
+import base64
+from typing import Any, Generator, Optional, Tuple, List
 from dify_plugin import Tool
 from dify_plugin.entities.tool import ToolInvokeMessage
 
@@ -67,6 +68,89 @@ class TextToImageTool(Tool):
     DEFAULT_SIZE = "1024x1024"
     DEFAULT_SIZE_I2I = "2k"  # 图生图默认使用 2k
     DEFAULT_GUIDANCE_SCALE = 7.5
+    
+    def _download_and_convert_to_base64(self, url: str) -> Optional[str]:
+        """
+        下载图片并转换为 base64 数据 URL
+        
+        解决火山引擎无法访问 Dify 内部文件 URL 的问题。
+        火山引擎 API 支持 data URL 格式的图片输入。
+        
+        Args:
+            url: 图片的 URL 地址
+            
+        Returns:
+            base64 数据 URL (如 "data:image/jpeg;base64,...") 或 None
+        """
+        # 如果已经是 data URL，直接返回
+        if url.startswith('data:'):
+            return url
+            
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=60)
+            
+            if response.status_code != 200:
+                return None
+            
+            image_data = response.content
+            
+            # 检测图片 MIME 类型
+            content_type = response.headers.get('Content-Type', '').lower()
+            if 'png' in content_type:
+                mime_type = 'image/png'
+            elif 'gif' in content_type:
+                mime_type = 'image/gif'
+            elif 'webp' in content_type:
+                mime_type = 'image/webp'
+            elif 'jpeg' in content_type or 'jpg' in content_type:
+                mime_type = 'image/jpeg'
+            else:
+                # 从图片头部检测
+                if image_data[:8] == b'\x89PNG\r\n\x1a\n':
+                    mime_type = 'image/png'
+                elif image_data[:2] == b'\xff\xd8':
+                    mime_type = 'image/jpeg'
+                elif image_data[:6] in (b'GIF87a', b'GIF89a'):
+                    mime_type = 'image/gif'
+                elif image_data[:4] == b'RIFF' and len(image_data) > 12 and image_data[8:12] == b'WEBP':
+                    mime_type = 'image/webp'
+                else:
+                    mime_type = 'image/jpeg'
+            
+            # 转换为 base64
+            b64_data = base64.b64encode(image_data).decode('utf-8')
+            return f"data:{mime_type};base64,{b64_data}"
+            
+        except Exception:
+            return None
+    
+    def _prepare_reference_images(self, urls: List[str]) -> Tuple[List[str], int, int]:
+        """
+        准备参考图片，将 URL 转换为 base64 格式
+        
+        Args:
+            urls: 图片 URL 列表
+            
+        Returns:
+            (转换后的图片列表, 成功数量, 失败数量)
+        """
+        converted = []
+        success_count = 0
+        fail_count = 0
+        
+        for url in urls:
+            result = self._download_and_convert_to_base64(url)
+            if result:
+                converted.append(result)
+                success_count += 1
+            else:
+                fail_count += 1
+        
+        return converted, success_count, fail_count
     
     def _get_image_size_from_url(self, url: str) -> Optional[Tuple[int, int]]:
         """
@@ -404,11 +488,28 @@ class TextToImageTool(Tool):
         
         # 添加参考图参数（图生图功能）
         if reference_images:
+            # 将参考图 URL 转换为 base64 格式
+            # 这是为了解决火山引擎无法访问 Dify 内部文件 URL 的问题
+            converted_images, success_count, fail_count = self._prepare_reference_images(reference_images)
+            
+            if fail_count > 0:
+                yield self.create_text_message(f"⚠️ 警告: {fail_count}张参考图下载失败")
+            
+            if not converted_images:
+                yield self.create_text_message("❌ 错误: 所有参考图都下载失败，无法进行图生图")
+                yield self.create_json_message({
+                    "success": False,
+                    "provider": "volcengine",
+                    "model": model,
+                    "error_message": "参考图下载失败"
+                })
+                return
+            
             # 单张图片传字符串，多张图片传数组
-            if len(reference_images) == 1:
-                payload["image"] = reference_images[0]
+            if len(converted_images) == 1:
+                payload["image"] = converted_images[0]
             else:
-                payload["image"] = reference_images
+                payload["image"] = converted_images
         
         # 添加可选参数
         if negative_prompt:
