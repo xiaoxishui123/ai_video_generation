@@ -537,18 +537,6 @@ class TextToVideoTool(Tool):
         
         # 构建带参数的 prompt (火山方舟使用命令行参数格式)
         full_prompt = prompt
-        # 添加视频比例（文生视频时）
-        if not is_i2v_mode and aspect_ratio and "--ratio" not in prompt:
-            full_prompt = f"{full_prompt} --ratio {aspect_ratio}"
-        # 添加时长
-        if duration and "--duration" not in prompt and "--dur" not in prompt:
-            full_prompt = f"{full_prompt} --duration {duration}"
-        # 添加分辨率
-        if resolution and "--resolution" not in prompt:
-            full_prompt = f"{full_prompt} --resolution {resolution}"
-        # 添加镜头控制（固定镜头）
-        if camera_control == "fixed" and "--camera" not in prompt:
-            full_prompt = f"{full_prompt} --camera fixed"
         
         # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
         model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
@@ -579,6 +567,29 @@ class TextToVideoTool(Tool):
             "Content-Type": "application/json"
         }
         
+        # 构建参数对象 (parameters)
+        # 注意：参数不应添加到 prompt 中，而是作为独立字段传递
+        api_parameters = {}
+        
+        # 添加时长 (需转为整数)
+        if duration:
+            try:
+                api_parameters["duration"] = int(duration)
+            except ValueError:
+                api_parameters["duration"] = 5
+                
+        # 添加分辨率
+        if resolution:
+            api_parameters["resolution"] = resolution
+            
+        # 添加视频比例（仅文生视频支持）
+        if not is_i2v_mode and aspect_ratio:
+            api_parameters["ratio"] = aspect_ratio
+            
+        # 添加镜头控制
+        if camera_control == "fixed":
+            api_parameters["camera_control"] = "fixed"
+        
         # 构建请求体 - 根据模式选择 T2V 或 I2V
         if is_i2v_mode:
             # I2V 模式：包含图片 + 文本
@@ -587,7 +598,8 @@ class TextToVideoTool(Tool):
                 "content": [
                     {"type": "image_url", "image_url": {"url": final_image_url}},
                     {"type": "text", "text": full_prompt}
-                ]
+                ],
+                "parameters": api_parameters
             }
         else:
             # T2V 模式：只有文本
@@ -595,7 +607,8 @@ class TextToVideoTool(Tool):
                 "model": model,
                 "content": [
                     {"type": "text", "text": full_prompt}
-                ]
+                ],
+                "parameters": api_parameters
             }
         
         try:

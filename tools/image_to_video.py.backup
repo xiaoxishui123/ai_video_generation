@@ -556,7 +556,7 @@ class ImageToVideoTool(Tool):
 
     # ========== 火山方舟实现 (Ark API) ==========
     def _submit_volcengine_task(
-        self, api_key: str, model: str, image_url: str, full_prompt: str, parameters: dict = None
+        self, api_key: str, model: str, image_url: str, full_prompt: str
     ) -> tuple[dict, str]:
         """提交火山引擎任务，返回 (result, error)"""
         headers = {
@@ -570,9 +570,6 @@ class ImageToVideoTool(Tool):
                 {"type": "text", "text": full_prompt}
             ]
         }
-        if parameters:
-            payload["parameters"] = parameters
-            
         try:
             response = requests.post(
                 f"{self.VOLCENGINE_API_BASE}/contents/generations/tasks",
@@ -595,14 +592,11 @@ class ImageToVideoTool(Tool):
         
         # 获取 endpoint_id，如果配置了则使用 endpoint_id，否则使用 model 名称
         endpoint_id = self.runtime.credentials.get("volcengine_endpoint_id", "").strip()
-        original_model = params.get("model", "doubao-seaweed-241128")
+        model = params.get("model", "doubao-seaweed-241128")
         
         # 火山方舟 Ark API 需要使用 endpoint_id 作为 model 参数
-        # 保存原始 model 用于显示，使用 endpoint_id 作为 API 调用的 model
         if endpoint_id:
-            model = endpoint_id  # API 调用使用 endpoint_id
-        else:
-            model = original_model  # 没有 endpoint_id 时使用原始 model
+            model = endpoint_id
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "让图片动起来")
         wait_for_completion = params.get("wait_for_completion", True)
@@ -613,64 +607,9 @@ class ImageToVideoTool(Tool):
             duration = "5"
         else:
             duration = str(duration_raw).strip()
-
-        # 🆕 处理 resolution 参数（火山引擎支持）
-        resolution_raw = params.get("resolution", "1080p")
-        if not resolution_raw or (isinstance(resolution_raw, str) and not resolution_raw.strip()):
-            resolution = "1080p"
-        else:
-            resolution = str(resolution_raw).strip()
-
-        # 🆕 读取音频参数
-        enable_audio = params.get("enable_audio", True)
-        audio_url_raw = params.get("audio_url", "")
-        narration = params.get("narration", "")
-
-        # 验证 audio_url 是否为有效 URL
-        audio_url = ""
-        if audio_url_raw and isinstance(audio_url_raw, str):
-            audio_url_raw = audio_url_raw.strip()
-            if audio_url_raw.startswith(("http://", "https://")):
-                audio_url = audio_url_raw
-
-        # 🆕 构建完整的 prompt（包含所有参数）
-        full_prompt = prompt
-
-        # 构建参数对象 (parameters)
-        api_parameters = {}
         
-        # 添加时长
-        if duration:
-            try:
-                api_parameters["duration"] = int(duration)
-            except ValueError:
-                api_parameters["duration"] = 5
-                
-        # 添加分辨率
-        if resolution:
-            api_parameters["resolution"] = resolution
-            
-        # 添加音频参数
-        if enable_audio:
-            api_parameters["audio"] = True
-        else:
-            api_parameters["audio"] = False
-            
-        # 如果提供了自定义音频URL
-        if audio_url:
-            api_parameters["audio_url"] = audio_url
-            
-        # 如果有旁白文本，合并到 prompt 中
-        if narration and enable_audio and not audio_url:
-            # 将旁白内容添加到描述中，帮助模型理解配音需求
-            original_prompt = prompt
-            enhanced_prompt = f"{original_prompt}。旁白内容：{narration}"
-            full_prompt = enhanced_prompt
-
-        # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
-        model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
-        if endpoint_id and original_model != endpoint_id:
-            model_name = f"{model_name} (Endpoint: {endpoint_id[:20]}...)" if len(endpoint_id) > 20 else f"{model_name} (Endpoint: {endpoint_id})"
+        full_prompt = f"{prompt} --duration {duration}"
+        model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         
         # 智能策略：判断是否需要预先转换 Base64
         need_base64 = not self._is_public_accessible_url(image_url)
@@ -688,30 +627,17 @@ class ImageToVideoTool(Tool):
             used_base64 = True
             yield self.create_text_message(f"✅ 图片转换成功")
         
-        # 🆕 构建音频配置信息
-        audio_info = ""
-        if audio_url:
-            audio_info = f"🎵 音频: 使用自定义音频\n"
-        elif enable_audio:
-            audio_info = f"🎤 配音: 自动生成\n"
-        else:
-            audio_info = f"🔇 音频: 无声视频\n"
-        if narration and enable_audio and not audio_url:
-            audio_info += f"📜 旁白: {narration[:30]}...\n"
-
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
             f"🖼️ 图片: {'Base64' if used_base64 else image_url[:60]}\n"
-            f"📺 分辨率: {resolution}\n"
             f"⏱️ 时长: {duration}秒\n"
-            f"{audio_info}"
             f"💬 描述: {prompt[:50]}..."
         )
         
         # 第一次尝试提交
-        result, error = self._submit_volcengine_task(api_key, model, final_image_url, full_prompt, api_parameters)
+        result, error = self._submit_volcengine_task(api_key, model, final_image_url, full_prompt)
         
         # 智能重试：如果是 URL 方式且返回 "image not found" 错误，自动转 Base64 重试
         if error and not used_base64 and "image" in error.lower() and "not found" in error.lower():
@@ -722,7 +648,7 @@ class ImageToVideoTool(Tool):
                 yield self.create_json_message({"success": False, "provider": "volcengine", "error_message": convert_error})
                 return
             yield self.create_text_message(f"✅ 图片转换成功，重新提交...")
-            result, error = self._submit_volcengine_task(api_key, model, base64_url, full_prompt, api_parameters)
+            result, error = self._submit_volcengine_task(api_key, model, base64_url, full_prompt)
             used_base64 = True
         
         if error:
