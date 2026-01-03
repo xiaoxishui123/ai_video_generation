@@ -592,11 +592,14 @@ class ImageToVideoTool(Tool):
         
         # 获取 endpoint_id，如果配置了则使用 endpoint_id，否则使用 model 名称
         endpoint_id = self.runtime.credentials.get("volcengine_endpoint_id", "").strip()
-        model = params.get("model", "doubao-seaweed-241128")
+        original_model = params.get("model", "doubao-seaweed-241128")
         
         # 火山方舟 Ark API 需要使用 endpoint_id 作为 model 参数
+        # 保存原始 model 用于显示，使用 endpoint_id 作为 API 调用的 model
         if endpoint_id:
-            model = endpoint_id
+            model = endpoint_id  # API 调用使用 endpoint_id
+        else:
+            model = original_model  # 没有 endpoint_id 时使用原始 model
         image_url = params.get("image_url", "")
         prompt = params.get("prompt", "让图片动起来")
         wait_for_completion = params.get("wait_for_completion", True)
@@ -653,7 +656,10 @@ class ImageToVideoTool(Tool):
             if enable_audio and "--audio" not in full_prompt:
                 full_prompt = f"{full_prompt} --audio enable"
 
-        model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
+        # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
+        model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
+        if endpoint_id and original_model != endpoint_id:
+            model_name = f"{model_name} (Endpoint: {endpoint_id[:20]}...)" if len(endpoint_id) > 20 else f"{model_name} (Endpoint: {endpoint_id})"
         
         # 智能策略：判断是否需要预先转换 Base64
         need_base64 = not self._is_public_accessible_url(image_url)

@@ -500,11 +500,14 @@ class TextToVideoTool(Tool):
         endpoint_id = self.runtime.credentials.get("volcengine_endpoint_id", "").strip()
         
         # 解析参数
-        model = params.get("model", "doubao-seedance-1-0-lite-t2v-250428")
+        original_model = params.get("model", "doubao-seedance-1-0-lite-t2v-250428")
         
         # 火山方舟 Ark API 需要使用 endpoint_id 作为 model 参数
+        # 保存原始 model 用于显示，使用 endpoint_id 作为 API 调用的 model
         if endpoint_id:
-            model = endpoint_id
+            model = endpoint_id  # API 调用使用 endpoint_id
+        else:
+            model = original_model  # 没有 endpoint_id 时使用原始 model
         prompt = params.get("prompt", "")
         duration = params.get("duration", "5")
         aspect_ratio = params.get("aspect_ratio", "16:9")
@@ -547,7 +550,10 @@ class TextToVideoTool(Tool):
         if camera_control == "fixed" and "--camera" not in prompt:
             full_prompt = f"{full_prompt} --camera fixed"
         
-        model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
+        # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
+        model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
+        if endpoint_id and original_model != endpoint_id:
+            model_name = f"{model_name} (Endpoint: {endpoint_id[:20]}...)" if len(endpoint_id) > 20 else f"{model_name} (Endpoint: {endpoint_id})"
         mode_text = "图生视频 (I2V)" if is_i2v_mode else "文生视频 (T2V)"
         
         info_text = (
