@@ -212,8 +212,8 @@ parameters:
     zh_Hans: 启用自动配音
     en_US: Enable Auto Audio
   human_description:
-    zh_Hans: 【仅通义万相2.5/2.6】为视频自动生成语音旁白
-    en_US: "[Wanxiang 2.5/2.6 Only] Auto generate voice-over for the video"
+    zh_Hans: 为视频自动生成语音旁白（通义万相2.5/2.6、火山引擎Seedance支持）
+    en_US: "Auto generate voice-over for the video (Wanxiang 2.5/2.6, Volcengine Seedance supported)"
   form: form
   default: true
 - name: audio_url
@@ -223,9 +223,9 @@ parameters:
     zh_Hans: 自定义音频URL
     en_US: Custom Audio URL
   human_description:
-    zh_Hans: 自定义音频文件URL（可选，传入后会使用此音频而非自动生成）
-    en_US: Custom audio file URL (optional, will use this audio instead of auto-generated)
-  llm_description: 自定义音频文件URL，支持wav/mp3格式，时长3-30秒
+    zh_Hans: 自定义音频文件URL（可选，传入后会使用此音频而非自动生成，仅通义万相支持）
+    en_US: Custom audio file URL (optional, will use this audio instead of auto-generated, Wanxiang only)
+  llm_description: 自定义音频文件URL，支持wav/mp3格式，时长3-30秒（仅通义万相支持）
   form: llm
 - name: narration
   type: string
@@ -234,8 +234,8 @@ parameters:
     zh_Hans: 旁白文本
     en_US: Narration Text
   human_description:
-    zh_Hans: 旁白文本，模型会根据此文本自动生成配音（需启用自动配音）
-    en_US: Narration text, the model will auto-generate audio based on this (requires enable_audio)
+    zh_Hans: 旁白文本，模型会根据此文本自动生成配音（需启用自动配音，通义万相/火山引擎支持）
+    en_US: Narration text, the model will auto-generate audio based on this (requires enable_audio, Wanxiang/Volcengine supported)
   llm_description: 旁白文本，用于自动配音。模型会根据此文本和画面内容生成语音。
   form: llm
 - name: wait_for_completion
