@@ -88,7 +88,13 @@ zip -rD "$OUTPUT_FILE" . \
     -x "*.pyc" \
     -x ".gitignore" \
     -x "build.sh" \
-    -x "*.difypkg"
+    -x "*.difypkg" \
+    -x "*.backup" \
+    -x "*.md" \
+    -x "安装测试指南.md" \
+    -x "COMPLETE_FIX_REPORT.md" \
+    -x "TEST_AUDIO_FIX.md" \
+    -x "AUDIO_FIX_CHANGELOG.md"
 
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}✅ 打包成功！${NC}"
