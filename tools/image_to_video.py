@@ -607,8 +607,52 @@ class ImageToVideoTool(Tool):
             duration = "5"
         else:
             duration = str(duration_raw).strip()
-        
+
+        # 🆕 处理 resolution 参数（火山引擎支持）
+        resolution_raw = params.get("resolution", "1080p")
+        if not resolution_raw or (isinstance(resolution_raw, str) and not resolution_raw.strip()):
+            resolution = "1080p"
+        else:
+            resolution = str(resolution_raw).strip()
+
+        # 🆕 读取音频参数
+        enable_audio = params.get("enable_audio", True)
+        audio_url_raw = params.get("audio_url", "")
+        narration = params.get("narration", "")
+
+        # 验证 audio_url 是否为有效 URL
+        audio_url = ""
+        if audio_url_raw and isinstance(audio_url_raw, str):
+            audio_url_raw = audio_url_raw.strip()
+            if audio_url_raw.startswith(("http://", "https://")):
+                audio_url = audio_url_raw
+
+        # 🆕 构建完整的 prompt（包含所有参数）
         full_prompt = f"{prompt} --duration {duration}"
+
+        # 🆕 添加分辨率参数（参考 text_to_video.py 行544）
+        if resolution and "--resolution" not in full_prompt:
+            full_prompt = f"{full_prompt} --resolution {resolution}"
+
+        # 添加音频参数（根据火山引擎API文档）
+        if enable_audio and "--audio" not in full_prompt:
+            full_prompt = f"{full_prompt} --audio enable"
+        elif not enable_audio and "--audio" not in full_prompt:
+            full_prompt = f"{full_prompt} --audio disable"
+
+        # 如果提供了自定义音频URL（可能需要验证是否支持）
+        if audio_url and "--audio-url" not in full_prompt:
+            full_prompt = f"{full_prompt} --audio-url {audio_url}"
+
+        # 如果有旁白文本，合并到 prompt 中
+        if narration and enable_audio and not audio_url:
+            # 将旁白内容添加到描述中，帮助模型理解配音需求
+            original_prompt = prompt
+            enhanced_prompt = f"{original_prompt}。旁白内容：{narration}"
+            full_prompt = f"{enhanced_prompt} --duration {duration}"
+            if enable_audio and "--audio" not in full_prompt:
+                full_prompt = f"{full_prompt} --audio enable"
+
         model_name = self.VOLCENGINE_MODELS.get(model, {}).get("name", model)
         
         # 智能策略：判断是否需要预先转换 Base64
@@ -627,12 +671,25 @@ class ImageToVideoTool(Tool):
             used_base64 = True
             yield self.create_text_message(f"✅ 图片转换成功")
         
+        # 🆕 构建音频配置信息
+        audio_info = ""
+        if audio_url:
+            audio_info = f"🎵 音频: 使用自定义音频\n"
+        elif enable_audio:
+            audio_info = f"🎤 配音: 自动生成\n"
+        else:
+            audio_info = f"🔇 音频: 无声视频\n"
+        if narration and enable_audio and not audio_url:
+            audio_info += f"📜 旁白: {narration[:30]}...\n"
+
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
             f"🖼️ 图片: {'Base64' if used_base64 else image_url[:60]}\n"
+            f"📺 分辨率: {resolution}\n"
             f"⏱️ 时长: {duration}秒\n"
+            f"{audio_info}"
             f"💬 描述: {prompt[:50]}..."
         )
         
