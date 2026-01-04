@@ -659,22 +659,19 @@ class TextToVideoTool(Tool):
         if camera_control == "fixed":
             api_parameters["camera_control"] = "fixed"
         
-        # 🆕 添加音频参数（火山方舟 Seedance 1.5 Pro 支持音频生成）
-        # 参考文档：https://www.volcengine.com/docs/82379/1366799
-        # 官方说明：Seedance 1.5 pro 可通过设置参数 generate_audio 为 true，生成有声视频
-        if enable_audio:
-            api_parameters["generate_audio"] = True
+        # 🆕 音频参数不再放在 parameters 中，而是放在请求体根级别
+        # 参考官方文档示例：https://www.volcengine.com/docs/82379/1366799
         
         # 构建请求体 - 根据模式选择 T2V 或 I2V
+        # ⚠️ 重要：官方示例中 content 顺序是 text 在前，image_url 在后！
         if is_i2v_mode:
-            # I2V 模式：包含图片 + 文本
+            # I2V 模式：text 在前，image_url 在后（按官方示例）
             payload = {
                 "model": model,
                 "content": [
-                    {"type": "image_url", "image_url": {"url": final_image_url}},
-                    {"type": "text", "text": full_prompt}
-                ],
-                "parameters": api_parameters
+                    {"type": "text", "text": full_prompt},
+                    {"type": "image_url", "image_url": {"url": final_image_url}}
+                ]
             }
         else:
             # T2V 模式：只有文本
@@ -682,9 +679,21 @@ class TextToVideoTool(Tool):
                 "model": model,
                 "content": [
                     {"type": "text", "text": full_prompt}
-                ],
-                "parameters": api_parameters
+                ]
             }
+        
+        # ✅ 只有在有其他参数时才添加 parameters（官方示例中没有 parameters）
+        if api_parameters:
+            payload["parameters"] = api_parameters
+        
+        # ✅ generate_audio 放在请求体根级别（官方示例格式）
+        if enable_audio:
+            payload["generate_audio"] = True
+        
+        # 🔍 调试：输出完整的请求 payload
+        debug_payload = {k: v for k, v in payload.items() if k != "content"}
+        debug_payload["content_types"] = [c["type"] for c in payload.get("content", [])]
+        yield self.create_text_message(f"📋 **请求参数**: {debug_payload}")
         
         try:
             # 提交任务
