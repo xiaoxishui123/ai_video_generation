@@ -75,10 +75,10 @@ credentials_for_provider:
       en_US: ⚠️ Third-party service. Get from JXINCM platform. Supports Sora-2 video generation with fixed 15s duration. Note - This is a third-party proxy service, stability not guaranteed
 
 tools:
-  - tools/text_to_video.yaml
-  - tools/image_to_video.yaml
-  - tools/text_to_image.yaml
-  - tools/query_task.yaml
+  - actions/text_to_video.yaml
+  - actions/image_to_video.yaml
+  - actions/text_to_image.yaml
+  - actions/query_task.yaml
 
 extra:
   python:

@@ -5,7 +5,7 @@ description:
   llm: Query the status and result of a video generation task. Returns task status, video URL when completed.
 extra:
   python:
-    source: tools/query_task.py
+    source: actions/query_task.py
 identity:
   author: xiaoxishui
   label:
