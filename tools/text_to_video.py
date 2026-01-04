@@ -545,6 +545,10 @@ class TextToVideoTool(Tool):
             except (ValueError, TypeError):
                 seed = -1
         
+        # 🆕 处理音频参数（火山方舟 Seedance 1.5 Pro 支持音频生成）
+        enable_audio = params.get("enable_audio", False)
+        narration = params.get("narration", "").strip()
+        
         # 检查是否有图片参数（I2V 模式）
         image_url = params.get("_image_url", "")
         is_i2v_mode = bool(image_url)
@@ -598,6 +602,11 @@ class TextToVideoTool(Tool):
             info_text += f"📷 镜头: 固定\n"
         if seed != -1:
             info_text += f"🎲 种子值: {seed}\n"
+        # 🆕 显示音频信息
+        if enable_audio:
+            info_text += f"🎤 音频: 已启用\n"
+        if narration:
+            info_text += f"📜 旁白: {narration[:50]}{'...' if len(narration) > 50 else ''}\n"
         info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         
         yield self.create_text_message(info_text)
@@ -649,6 +658,12 @@ class TextToVideoTool(Tool):
         # ✅ 添加镜头控制
         if camera_control == "fixed":
             api_parameters["camera_control"] = "fixed"
+        
+        # 🆕 添加音频参数（火山方舟 Seedance 1.5 Pro 支持音频生成）
+        # 参考文档：https://www.volcengine.com/docs/82379/1366799
+        # 官方说明：Seedance 1.5 pro 可通过设置参数 generate_audio 为 true，生成有声视频
+        if enable_audio:
+            api_parameters["generate_audio"] = True
         
         # 构建请求体 - 根据模式选择 T2V 或 I2V
         if is_i2v_mode:
