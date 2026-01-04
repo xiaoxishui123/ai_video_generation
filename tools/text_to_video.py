@@ -687,8 +687,18 @@ class TextToVideoTool(Tool):
             payload["parameters"] = api_parameters
         
         # ✅ generate_audio 放在请求体根级别（官方示例格式）
+        # ⚠️ 重要：只有 seedance-1-5-pro 模型支持 generate_audio 参数
+        # 错误信息：model type can not support generate_audio except for seedance-1-5-pro
+        # 注意：如果使用 endpoint_id，需要确保 endpoint 绑定的是 Seedance 1.5 Pro 模型
+        is_seedance_15_pro = "1-5-pro" in original_model.lower() or "1.5-pro" in original_model.lower()
         if enable_audio:
-            payload["generate_audio"] = True
+            if is_seedance_15_pro:
+                payload["generate_audio"] = True
+                # 如果使用了 endpoint，提示用户确认 endpoint 绑定的模型
+                if endpoint_id:
+                    yield self.create_text_message(f"💡 提示：请确保 endpoint `{endpoint_id}` 绑定的是 Seedance 1.5 Pro 模型，否则音频生成会失败")
+            else:
+                yield self.create_text_message(f"⚠️ 注意：当前模型 {original_model} 不支持音频生成，已跳过 generate_audio 参数")
         
         # 🔍 调试：输出完整的请求 payload
         debug_payload = {k: v for k, v in payload.items() if k != "content"}
