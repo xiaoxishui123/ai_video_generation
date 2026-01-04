@@ -5,7 +5,7 @@ description:
   llm: Generate images from text or reference images using Volcengine Ark Seedream models. Supports image-to-image generation with up to 14 reference images.
 extra:
   python:
-    source: actions/text_to_image.py
+    source: tools/text_to_image.py
 identity:
   author: xiaoxishui
   label:

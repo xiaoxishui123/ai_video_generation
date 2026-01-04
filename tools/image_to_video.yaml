@@ -5,7 +5,7 @@ description:
   llm: Generate video from image and text description using AI models. Supports Aliyun Bailian, Volcengine Ark and JXINCM(Sora2) platforms.
 extra:
   python:
-    source: actions/image_to_video.py
+    source: tools/image_to_video.py
 identity:
   author: xiaoxishui
   label:

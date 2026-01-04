@@ -5,7 +5,7 @@ description:
   llm: Generate video from text or image+text. Supports multiple platforms including Aliyun, Volcengine and JXINCM(Sora2).
 extra:
   python:
-    source: actions/text_to_video.py
+    source: tools/text_to_video.py
 identity:
   author: xiaoxishui
   label:
