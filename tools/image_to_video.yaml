@@ -158,16 +158,40 @@ parameters:
     label:
       zh_Hans: 1080p (全高清)
       en_US: 1080p (Full HD)
+- name: duration_mode
+  type: select
+  required: false
+  label:
+    zh_Hans: 时长模式
+    en_US: Duration Mode
+  human_description:
+    zh_Hans: 【火山方舟】时长设置方式：按秒数、按帧数或智能时长
+    en_US: "[Volcengine] Duration mode: by seconds, by frames, or smart duration"
+  form: form
+  default: "seconds"
+  options:
+  - value: "seconds"
+    label:
+      zh_Hans: 按秒数
+      en_US: By Seconds
+  - value: "frames"
+    label:
+      zh_Hans: 按帧数 (火山方舟)
+      en_US: By Frames (Volcengine)
+  - value: "smart"
+    label:
+      zh_Hans: 智能时长 (火山方舟)
+      en_US: Smart Duration (Volcengine)
 - name: duration
   type: select
   required: false
   label:
-    zh_Hans: 视频时长
-    en_US: Video Duration
+    zh_Hans: 视频时长(秒)
+    en_US: Video Duration (Seconds)
   human_description:
-    zh_Hans: 生成视频的时长（秒）。通义万相2.6支持5/10/15秒
-    en_US: Duration of the generated video (seconds). Wanxiang 2.6 supports 5/10/15s
-  llm_description: 视频时长，支持 5/10/15 秒
+    zh_Hans: 生成视频的时长（秒）。通义万相2.6支持5/10/15秒，火山方舟支持更多
+    en_US: Duration of the generated video (seconds). Wanxiang 2.6 supports 5/10/15s, Volcengine supports more
+  llm_description: 视频时长（秒），当时长模式为"按秒数"时生效
   form: llm
   default: "5"
   options:
@@ -183,6 +207,40 @@ parameters:
     label:
       zh_Hans: 15秒 (仅通义万相2.6)
       en_US: 15 seconds (Wanxiang 2.6 only)
+- name: frames
+  type: number
+  required: false
+  label:
+    zh_Hans: 帧数
+    en_US: Frame Count
+  human_description:
+    zh_Hans: 【火山方舟】生成视频的帧数（当时长模式为"按帧数"时生效）
+    en_US: "[Volcengine] Frame count of the generated video (when duration mode is 'By Frames')"
+  llm_description: 视频帧数，仅在时长模式为"按帧数"时生效
+  form: llm
+- name: fixed_camera
+  type: boolean
+  required: false
+  label:
+    zh_Hans: 固定镜头
+    en_US: Fixed Camera
+  human_description:
+    zh_Hans: 【火山方舟】固定镜头，禁用镜头运动
+    en_US: "[Volcengine] Fixed camera, disable camera movement"
+  form: form
+  default: false
+- name: seed
+  type: number
+  required: false
+  label:
+    zh_Hans: 种子值
+    en_US: Seed
+  human_description:
+    zh_Hans: 【火山方舟】随机种子，-1表示随机。相同种子可复现结果
+    en_US: "[Volcengine] Random seed, -1 for random. Same seed can reproduce results"
+  llm_description: 随机种子值，-1表示随机，其他正整数可用于复现结果
+  form: llm
+  default: -1
 - name: prompt_extend
   type: boolean
   required: false

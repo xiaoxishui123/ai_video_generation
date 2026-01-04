@@ -607,19 +607,47 @@ class ImageToVideoTool(Tool):
         prompt = params.get("prompt", "让图片动起来")
         wait_for_completion = params.get("wait_for_completion", True)
         
-        # 处理 duration 参数，确保空字符串或无效值使用默认值
+        # 🆕 处理时长模式参数（火山方舟支持3种方式：按秒数、按帧数、智能时长）
+        duration_mode = params.get("duration_mode", "seconds")
+        if not duration_mode or (isinstance(duration_mode, str) and not duration_mode.strip()):
+            duration_mode = "seconds"
+        else:
+            duration_mode = str(duration_mode).strip()
+        
+        # 处理 duration 参数（按秒数模式）
         duration_raw = params.get("duration", "5")
         if not duration_raw or (isinstance(duration_raw, str) and not duration_raw.strip()):
             duration = "5"
         else:
             duration = str(duration_raw).strip()
+        
+        # 🆕 处理 frames 参数（按帧数模式）
+        frames_raw = params.get("frames")
+        frames = None
+        if frames_raw:
+            try:
+                frames = int(frames_raw)
+            except (ValueError, TypeError):
+                frames = None
 
         # 🆕 处理 resolution 参数（火山引擎支持）
-        resolution_raw = params.get("resolution", "1080p")
+        resolution_raw = params.get("resolution", "720p")
         if not resolution_raw or (isinstance(resolution_raw, str) and not resolution_raw.strip()):
-            resolution = "1080p"
+            resolution = "720p"
         else:
             resolution = str(resolution_raw).strip()
+        
+        # 🆕 处理固定镜头参数
+        fixed_camera = params.get("fixed_camera", False)
+        
+        # 🆕 处理种子值参数
+        seed_raw = params.get("seed", -1)
+        seed = -1
+        if seed_raw is not None:
+            try:
+                seed = int(seed_raw)
+            except (ValueError, TypeError):
+                seed = -1
 
         # 🆕 读取音频参数
         enable_audio = params.get("enable_audio", True)
@@ -633,28 +661,56 @@ class ImageToVideoTool(Tool):
             if audio_url_raw.startswith(("http://", "https://")):
                 audio_url = audio_url_raw
 
-        # 🆕 构建完整的 prompt（包含所有参数）
+        # 🆕 构建 prompt（不包含参数，参数通过 parameters 对象传递）
+        # ✅ 根据火山方舟官方文档：所有参数应通过 parameters 对象传递，而不是添加到 prompt 中
+        # 参考: https://www.volcengine.com/docs/82379/1366799
         full_prompt = prompt
 
         # 构建参数对象 (parameters)
+        # ✅ 所有参数应通过 parameters 对象传递，符合火山方舟 Ark API 标准格式
         api_parameters = {}
         
-        # 添加时长
-        if duration:
-            try:
-                api_parameters["duration"] = int(duration)
-            except ValueError:
-                api_parameters["duration"] = 5
-                
-        # 添加分辨率
+        # ✅ 添加时长参数（根据时长模式选择不同参数）
+        # 火山方舟支持3种时长设置方式：按秒数、按帧数、智能时长
+        if duration_mode == "frames" and frames:
+            # 按帧数模式：传递 frames 参数
+            api_parameters["frames"] = frames
+        elif duration_mode == "smart":
+            # 智能时长模式：传递 smart_duration 或不传递 duration
+            api_parameters["smart_duration"] = True
+        else:
+            # 按秒数模式（默认）：传递 duration 参数
+            if duration:
+                try:
+                    api_parameters["duration"] = int(duration)
+                except ValueError:
+                    api_parameters["duration"] = 5
+        
+        # ✅ 添加分辨率
         if resolution:
             api_parameters["resolution"] = resolution
+        
+        # ✅ 添加固定镜头参数
+        if fixed_camera:
+            api_parameters["camera_control"] = "fixed"
+        
+        # ✅ 添加种子值参数（-1表示随机）
+        if seed is not None and seed != -1:
+            api_parameters["seed"] = seed
+        
+        # ⚠️ 注意：图生视频(I2V)的比例由输入图片决定，不需要传递 aspect_ratio 参数
+        # 如果模型支持自适应比例，API会自动处理
             
         # 添加音频参数
-        if enable_audio:
-            api_parameters["audio"] = True
-        else:
-            api_parameters["audio"] = False
+        # ✅ 根据火山方舟官方文档确认：
+        # Seedance 1.5 pro 可通过设置参数 generate_audio 为 true，生成有声视频
+        # 参考：火山方舟官方文档 - 图生视频-基于首帧 含音频
+        # 参数名称：generate_audio
+        # 参数值：字符串 "true"（不是布尔值 True）
+        # ⚠️ 注意：如果提供了自定义音频URL，则不应传递generate_audio参数（audio_url优先级更高）
+        if enable_audio and not audio_url:
+            api_parameters["generate_audio"] = "true"
+        # 注意：enable_audio 为 False 时不传递参数，让API使用默认值（无声视频）
             
         # 如果提供了自定义音频URL
         if audio_url:
@@ -699,15 +755,40 @@ class ImageToVideoTool(Tool):
         if narration and enable_audio and not audio_url:
             audio_info += f"📜 旁白: {narration[:30]}...\n"
 
+        # 🆕 构建时长信息（根据时长模式显示不同信息）
+        duration_info = ""
+        if duration_mode == "frames" and frames:
+            duration_info = f"⏱️ 时长: {frames}帧 (按帧数)\n"
+        elif duration_mode == "smart":
+            duration_info = f"⏱️ 时长: 智能时长 (自动)\n"
+        else:
+            duration_info = f"⏱️ 时长: {duration}秒\n"
+        
+        # 🆕 构建高级参数信息
+        advanced_info = ""
+        if fixed_camera:
+            advanced_info += f"📷 固定镜头: 已启用\n"
+        if seed != -1:
+            advanced_info += f"🎲 种子值: {seed}\n"
+
         yield self.create_text_message(
             f"🚀 **提交图生视频任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
             f"🖼️ 图片: {'Base64' if used_base64 else image_url[:60]}\n"
             f"📺 分辨率: {resolution}\n"
-            f"⏱️ 时长: {duration}秒\n"
+            f"{duration_info}"
+            f"{advanced_info}"
             f"{audio_info}"
             f"💬 描述: {prompt[:50]}..."
+        )
+        
+        # 调试：输出实际发送的参数（用于排查问题）
+        # ✅ 根据官方文档：使用 generate_audio="true" 参数生成有声视频
+        yield self.create_text_message(
+            f"🔍 调试信息：发送的参数 = {api_parameters}\n"
+            f"✅ 模型 {original_model} 支持音频生成功能\n"
+            f"✅ 使用官方参数：generate_audio=\"true\""
         )
         
         # 第一次尝试提交

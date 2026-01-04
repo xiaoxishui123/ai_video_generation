@@ -509,11 +509,41 @@ class TextToVideoTool(Tool):
         else:
             model = original_model  # 没有 endpoint_id 时使用原始 model
         prompt = params.get("prompt", "")
-        duration = params.get("duration", "5")
         aspect_ratio = params.get("aspect_ratio", "16:9")
-        resolution = params.get("resolution", "1080p")
+        resolution = params.get("resolution", "720p")
         camera_control = params.get("camera_control", "auto")
         wait_for_completion = params.get("wait_for_completion", True)
+        
+        # 🆕 处理时长模式参数（火山方舟支持3种方式：按秒数、按帧数、智能时长）
+        duration_mode = params.get("duration_mode", "seconds")
+        if not duration_mode or (isinstance(duration_mode, str) and not duration_mode.strip()):
+            duration_mode = "seconds"
+        else:
+            duration_mode = str(duration_mode).strip()
+        
+        # 处理 duration 参数（按秒数模式）
+        duration = params.get("duration", "5")
+        
+        # 🆕 处理 frames 参数（按帧数模式）
+        frames_raw = params.get("frames")
+        frames = None
+        if frames_raw:
+            try:
+                frames = int(frames_raw)
+            except (ValueError, TypeError):
+                frames = None
+        
+        # 🆕 处理固定镜头参数
+        fixed_camera = params.get("fixed_camera", False)
+        
+        # 🆕 处理种子值参数
+        seed_raw = params.get("seed", -1)
+        seed = -1
+        if seed_raw is not None:
+            try:
+                seed = int(seed_raw)
+            except (ValueError, TypeError):
+                seed = -1
         
         # 检查是否有图片参数（I2V 模式）
         image_url = params.get("_image_url", "")
@@ -535,7 +565,8 @@ class TextToVideoTool(Tool):
             else:
                 final_image_url = image_url
         
-        # 构建带参数的 prompt (火山方舟使用命令行参数格式)
+        # ✅ 构建 prompt（不包含参数，参数通过 parameters 对象传递）
+        # ✅ 根据火山方舟官方文档：所有参数应通过 parameters 对象传递，而不是添加到 prompt 中
         full_prompt = prompt
         
         # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
@@ -544,19 +575,29 @@ class TextToVideoTool(Tool):
             model_name = f"{model_name} (Endpoint: {endpoint_id[:20]}...)" if len(endpoint_id) > 20 else f"{model_name} (Endpoint: {endpoint_id})"
         mode_text = "图生视频 (I2V)" if is_i2v_mode else "文生视频 (T2V)"
         
+        # 🆕 构建时长信息（根据时长模式显示不同信息）
+        if duration_mode == "frames" and frames:
+            duration_info = f"⏱️ 时长: {frames}帧 (按帧数)\n"
+        elif duration_mode == "smart":
+            duration_info = f"⏱️ 时长: 智能时长 (自动)\n"
+        else:
+            duration_info = f"⏱️ 时长: {duration}秒\n"
+        
         info_text = (
             f"🚀 **提交{mode_text}任务**\n\n"
             f"🏢 平台: 火山方舟\n"
             f"📝 模型: {model_name}\n"
             f"📺 分辨率: {resolution}\n"
-            f"⏱️ 时长: {duration}秒\n"
+            f"{duration_info}"
         )
         if is_i2v_mode:
             info_text += f"🖼️ 图片: {'Base64' if need_base64 else '公网URL'}\n"
         else:
             info_text += f"📐 宽高比: {aspect_ratio}\n"
-        if camera_control == "fixed":
+        if camera_control == "fixed" or fixed_camera:
             info_text += f"📷 镜头: 固定\n"
+        if seed != -1:
+            info_text += f"🎲 种子值: {seed}\n"
         info_text += f"💬 提示词: {prompt[:80]}{'...' if len(prompt) > 80 else ''}"
         
         yield self.create_text_message(info_text)
@@ -571,22 +612,41 @@ class TextToVideoTool(Tool):
         # 注意：参数不应添加到 prompt 中，而是作为独立字段传递
         api_parameters = {}
         
-        # 添加时长 (需转为整数)
-        if duration:
-            try:
-                api_parameters["duration"] = int(duration)
-            except ValueError:
-                api_parameters["duration"] = 5
+        # ✅ 添加时长参数（根据时长模式选择不同参数）
+        # 火山方舟支持3种时长设置方式：按秒数、按帧数、智能时长
+        if duration_mode == "frames" and frames:
+            # 按帧数模式：传递 frames 参数
+            api_parameters["frames"] = frames
+        elif duration_mode == "smart":
+            # 智能时长模式：传递 smart_duration 或不传递 duration
+            api_parameters["smart_duration"] = True
+        else:
+            # 按秒数模式（默认）：传递 duration 参数
+            if duration:
+                try:
+                    api_parameters["duration"] = int(duration)
+                except ValueError:
+                    api_parameters["duration"] = 5
                 
-        # 添加分辨率
+        # ✅ 添加分辨率
         if resolution:
             api_parameters["resolution"] = resolution
+        
+        # ✅ 添加固定镜头参数
+        if fixed_camera:
+            api_parameters["camera_control"] = "fixed"
+        
+        # ✅ 添加种子值参数（-1表示随机）
+        if seed is not None and seed != -1:
+            api_parameters["seed"] = seed
+        
+        # ✅ 添加视频比例（仅文生视频支持，图生视频由图片决定比例）
+        # ⚠️ 修复：aspect_ratio 应通过 parameters 传递，而不是添加到 prompt 中
+        # ⚠️ 注意：图生视频(I2V)的比例由输入图片决定，不需要传递 aspect_ratio 参数
+        if aspect_ratio and not is_i2v_mode:
+            api_parameters["aspect_ratio"] = aspect_ratio
             
-        # 添加视频比例（仅文生视频支持）
-        if not is_i2v_mode and aspect_ratio:
-            api_parameters["ratio"] = aspect_ratio
-            
-        # 添加镜头控制
+        # ✅ 添加镜头控制
         if camera_control == "fixed":
             api_parameters["camera_control"] = "fixed"
         
