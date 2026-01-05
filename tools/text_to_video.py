@@ -772,48 +772,51 @@ class TextToVideoTool(Tool):
             "Content-Type": "application/json"
         }
         
-        # 构建参数对象 (parameters)
-        # 注意：参数不应添加到 prompt 中，而是作为独立字段传递
-        api_parameters = {}
+        # ========== 构建 prompt 参数后缀 ==========
+        # 🔧 修复：火山方舟 Seedance API 的参数需要通过 prompt 文本后缀传递
+        # 官方格式：prompt文本 --rs 720p --dur 5 --cf true --seed 123
+        # 参考文档：https://www.volcengine.com/docs/82379/1631633
         
-        # ✅ 添加时长参数（根据时长模式选择不同参数）
+        prompt_params = []
+        
+        # ✅ 添加分辨率参数 (--rs)
+        if resolution:
+            prompt_params.append(f"--rs {resolution}")
+        
+        # ✅ 添加时长参数 (--dur)
         # 火山方舟支持3种时长设置方式：按秒数、按帧数、智能时长
         if duration_mode == "frames" and frames:
-            # 按帧数模式：传递 frames 参数
-            api_parameters["frames"] = frames
-        elif duration_mode == "smart":
-            # 智能时长模式：传递 smart_duration 或不传递 duration
-            api_parameters["smart_duration"] = True
-        else:
-            # 按秒数模式（默认）：传递 duration 参数
+            # 按帧数模式：使用 --frames 或 --dur
+            prompt_params.append(f"--dur {frames}")  # 帧数也用 dur 传递
+        elif duration_mode != "smart":
+            # 按秒数模式（默认）
             if duration:
                 try:
-                    api_parameters["duration"] = int(duration)
+                    prompt_params.append(f"--dur {int(duration)}")
                 except ValueError:
-                    api_parameters["duration"] = 5
-                
-        # ✅ 添加分辨率
-        if resolution:
-            api_parameters["resolution"] = resolution
+                    prompt_params.append("--dur 5")
+        # 智能时长模式不传递 dur 参数，让模型自动决定
         
-        # ✅ 添加固定镜头参数
-        if fixed_camera:
-            api_parameters["camera_control"] = "fixed"
-        
-        # ✅ 添加种子值参数（-1表示随机）
-        if seed is not None and seed != -1:
-            api_parameters["seed"] = seed
-        
-        # ✅ 添加视频比例（仅文生视频支持，图生视频由图片决定比例）
-        # ⚠️ 修复：aspect_ratio 应通过 parameters 传递，而不是添加到 prompt 中
-        # ⚠️ 注意：图生视频(I2V)的比例由输入图片决定，不需要传递 aspect_ratio 参数
-        # ⚠️ 注意：智能比例(smart)时不传递 aspect_ratio 参数，让模型自动决定
+        # ✅ 添加视频比例参数 (--rt)
+        # 仅文生视频支持，图生视频由图片决定比例
         if aspect_ratio and aspect_ratio != "smart" and not is_i2v_mode:
-            api_parameters["aspect_ratio"] = aspect_ratio
-            
-        # ✅ 添加镜头控制
-        if camera_control == "fixed":
-            api_parameters["camera_control"] = "fixed"
+            prompt_params.append(f"--rt {aspect_ratio}")
+        
+        # ✅ 添加固定镜头参数 (--cf = camera fixed)
+        # 🔧 这是核心修复：固定镜头参数必须通过 --cf true/false 传递
+        if fixed_camera or camera_control == "fixed":
+            prompt_params.append("--cf true")
+        
+        # ✅ 添加种子值参数 (--seed)
+        if seed is not None and seed != -1:
+            prompt_params.append(f"--seed {seed}")
+        
+        # 将参数后缀附加到 prompt 末尾
+        if prompt_params:
+            full_prompt = f"{full_prompt} {' '.join(prompt_params)}"
+        
+        # 清空 api_parameters（参数已通过 prompt 后缀传递）
+        api_parameters = {}
         
         # 🆕 音频参数不再放在 parameters 中，而是放在请求体根级别
         # 参考官方文档示例：https://www.volcengine.com/docs/82379/1366799
@@ -856,10 +859,12 @@ class TextToVideoTool(Tool):
             else:
                 yield self.create_text_message(f"⚠️ 注意：当前模型 {original_model} 不支持音频生成，已跳过 generate_audio 参数")
         
-        # 🔍 调试：输出完整的请求 payload
+        # 🔍 调试：输出完整的请求信息
         debug_payload = {k: v for k, v in payload.items() if k != "content"}
         debug_payload["content_types"] = [c["type"] for c in payload.get("content", [])]
+        # 显示实际发送的 prompt（包含参数后缀）
         yield self.create_text_message(f"📋 **请求参数**: {debug_payload}")
+        yield self.create_text_message(f"📝 **完整Prompt**: {full_prompt[:200]}{'...' if len(full_prompt) > 200 else ''}")
         
         try:
             # 提交任务
