@@ -724,7 +724,17 @@ class TextToVideoTool(Tool):
         # ✅ 构建 prompt
         # 插件只做简单封装，prompt 组合逻辑由工作流负责
         # narration 参数已废弃，工作流应直接在 prompt 中包含配音内容
-        full_prompt = prompt
+        # 🔧 关键修复：清理换行符！
+        # 火山方舟会把 \n\n 解释为独立段落，只配音最后一段！
+        # 必须将所有换行符替换为空格，确保整段文本被完整配音
+        import re
+        if prompt:
+            # 将多个换行符替换为单个空格
+            full_prompt = re.sub(r'\n+', ' ', prompt)
+            # 将多个空格压缩为单个空格
+            full_prompt = re.sub(r'\s+', ' ', full_prompt).strip()
+        else:
+            full_prompt = ""
         
         # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
         model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
