@@ -104,11 +104,13 @@ parameters:
     zh_Hans: 动作描述
     en_US: Motion Description
   human_description:
-    zh_Hans: 描述图片中的元素如何运动（可选）
-    en_US: Describe how elements in the image should move (optional)
+    zh_Hans: 描述图片中的元素如何运动（可选），支持引用上游节点变量
+    en_US: Describe how elements in the image should move (optional), supports variable reference
   llm_description: 描述图片中元素的运动方式，如"让图片中的人物微笑并挥手"
   form: llm
-  default: 让图片动起来
+  placeholder:
+    zh_Hans: 让图片动起来
+    en_US: Make the image come alive
 - name: aspect_ratio
   type: select
   required: false

@@ -569,9 +569,14 @@ class TextToVideoTool(Tool):
             else:
                 final_image_url = image_url
         
-        # ✅ 构建 prompt（不包含参数，参数通过 parameters 对象传递）
-        # ✅ 根据火山方舟官方文档：所有参数应通过 parameters 对象传递，而不是添加到 prompt 中
-        full_prompt = prompt
+        # ✅ 构建 prompt
+        # 🆕 如果有 narration（旁白文本），将其添加到 prompt 中
+        # 这样模型在生成音频时会根据 narration 内容配音，而不是根据画面描述自动生成
+        if narration and enable_audio:
+            # 将旁白内容作为配音指示添加到 prompt 中
+            full_prompt = f"{prompt}\n\n【配音旁白】{narration}"
+        else:
+            full_prompt = prompt
         
         # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
         model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
