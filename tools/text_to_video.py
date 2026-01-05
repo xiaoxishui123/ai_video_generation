@@ -596,6 +596,9 @@ class TextToVideoTool(Tool):
         )
         if is_i2v_mode:
             info_text += f"🖼️ 图片: {'Base64' if need_base64 else '公网URL'}\n"
+            info_text += f"📐 宽高比: 由图片决定\n"
+        elif aspect_ratio == "smart":
+            info_text += f"📐 宽高比: 智能比例（自动）\n"
         else:
             info_text += f"📐 宽高比: {aspect_ratio}\n"
         if camera_control == "fixed" or fixed_camera:
@@ -652,7 +655,8 @@ class TextToVideoTool(Tool):
         # ✅ 添加视频比例（仅文生视频支持，图生视频由图片决定比例）
         # ⚠️ 修复：aspect_ratio 应通过 parameters 传递，而不是添加到 prompt 中
         # ⚠️ 注意：图生视频(I2V)的比例由输入图片决定，不需要传递 aspect_ratio 参数
-        if aspect_ratio and not is_i2v_mode:
+        # ⚠️ 注意：智能比例(smart)时不传递 aspect_ratio 参数，让模型自动决定
+        if aspect_ratio and aspect_ratio != "smart" and not is_i2v_mode:
             api_parameters["aspect_ratio"] = aspect_ratio
             
         # ✅ 添加镜头控制

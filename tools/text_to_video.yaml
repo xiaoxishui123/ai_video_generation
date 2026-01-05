@@ -155,6 +155,10 @@ parameters:
     label:
       zh_Hans: 9:16 (竖屏)
       en_US: 9:16 (Portrait)
+  - value: "smart"
+    label:
+      zh_Hans: 智能比例 (火山方舟)
+      en_US: Smart Ratio (Volcengine)
 - name: duration_mode
   type: select
   required: false
