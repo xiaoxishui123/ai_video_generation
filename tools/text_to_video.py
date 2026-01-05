@@ -784,12 +784,16 @@ class TextToVideoTool(Tool):
             prompt_params.append(f"--rs {resolution}")
         
         # ✅ 添加时长参数 (--dur)
-        # 火山方舟"智能时长"会根据配音文本长度自动计算（约9字/秒）
-        # 只有在非智能模式或非配音模式时才手动指定时长
-        if enable_audio:
-            # 配音模式 + 智能时长：不传 --dur，让火山方舟根据文本长度自动计算
-            # 注意：需要确保输入文本足够长（建议 > 45字）才能生成较长视频
-            pass
+        # 🔧 重要：启用配音时必须手动计算时长，否则视频时长可能超过配音时长导致后面静音
+        # 火山方舟语速约 9 字/秒，Seedance 支持 2-12 秒
+        if enable_audio and full_prompt:
+            # 配音模式：根据配音文本长度强制指定视频时长，确保音画同步
+            text_for_duration = full_prompt.split('--')[0].strip()  # 去掉已添加的参数后缀
+            char_count = len(text_for_duration.replace(' ', '').replace('\n', ''))
+            # 火山方舟配音语速约 9 字/秒，向上取整确保配音不被截断
+            calculated_duration = max(2, min(12, (char_count + 8) // 9 + 1))  # +1 留余量
+            prompt_params.append(f"--dur {calculated_duration}")
+            yield self.create_text_message(f"🎤 配音时长: {char_count}字 ÷ 9字/秒 ≈ {calculated_duration}秒")
         elif duration_mode == "frames" and frames:
             # 按帧数模式：使用 --frames 参数（优先级高于 --dur）
             prompt_params.append(f"--frames {frames}")
