@@ -721,13 +721,9 @@ class TextToVideoTool(Tool):
                 final_image_url = image_url
         
         # ✅ 构建 prompt
-        # 🆕 如果有 narration（旁白文本），将其添加到 prompt 中
-        # 这样模型在生成音频时会根据 narration 内容配音，而不是根据画面描述自动生成
-        if narration and enable_audio:
-            # 将旁白内容作为配音指示添加到 prompt 中
-            full_prompt = f"{prompt}\n\n【配音旁白】{narration}"
-        else:
-            full_prompt = prompt
+        # 插件只做简单封装，prompt 组合逻辑由工作流负责
+        # narration 参数已废弃，工作流应直接在 prompt 中包含配音内容
+        full_prompt = prompt
         
         # 显示时使用原始 model 的名称（如果存在），否则使用 endpoint_id
         model_name = self.VOLCENGINE_MODELS.get(original_model, {}).get("name", original_model)
