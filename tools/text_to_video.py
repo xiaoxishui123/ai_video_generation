@@ -802,10 +802,12 @@ class TextToVideoTool(Tool):
             # 配音模式：根据文本长度计算时长，确保视频时长与配音匹配
             text_for_duration = full_prompt.split('--')[0].strip()  # 去掉参数后缀
             char_count = len(text_for_duration.replace(' ', '').replace('\n', ''))
-            # 语速约 9字/秒，限制在 2-12 秒范围内
-            calculated_duration = max(2, min(12, (char_count + 4) // 9))  # +4 四舍五入
+            # 🔧 修复：使用 8字/秒（比标准9字/秒慢），确保有足够时间配完
+            # 并且向上取整 +1 秒余量，避免配音被截断
+            import math
+            calculated_duration = max(2, min(12, math.ceil(char_count / 8) + 1))
             prompt_params.append(f"--dur {calculated_duration}")
-            logging.info(f"🎤 配音时长计算: {char_count}字 ÷ 9字/秒 = {calculated_duration}秒")
+            logging.info(f"🎤 配音时长计算: {char_count}字 ÷ 8字/秒 + 1秒余量 = {calculated_duration}秒")
         elif duration_mode == "frames" and frames:
             # 按帧数模式：使用 --frames 参数（优先级高于 --dur）
             prompt_params.append(f"--frames {frames}")
