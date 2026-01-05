@@ -174,6 +174,157 @@ class TextToVideoTool(Tool):
         except Exception:
             return False
 
+    def _get_video_duration_from_url(self, video_url: str) -> float:
+        """
+        从视频URL获取视频实际时长
+        
+        方法：下载视频文件头部（前128KB），解析MP4 moov/mvhd atom获取时长
+        
+        Args:
+            video_url: 视频URL
+            
+        Returns:
+            视频时长（秒），失败返回0
+        """
+        import struct
+        import logging
+        
+        try:
+            # 下载视频文件的前128KB（足够包含moov atom）
+            headers = {"Range": "bytes=0-131072"}
+            response = requests.get(video_url, headers=headers, timeout=10)
+            
+            if response.status_code not in [200, 206]:
+                logging.warning(f"下载视频头部失败: HTTP {response.status_code}")
+                return 0
+            
+            data = response.content
+            logging.info(f"下载视频头部: {len(data)} bytes")
+            
+            # 解析MP4文件，查找moov/mvhd atom
+            duration = self._parse_mp4_duration(data)
+            if duration > 0:
+                logging.info(f"从MP4头部解析到时长: {duration}秒")
+                return duration
+            
+            # 如果头部没有moov，可能moov在文件末尾
+            # 尝试获取完整文件（如果不太大）
+            content_range = response.headers.get("Content-Range", "")
+            if content_range:
+                # 格式: bytes 0-131072/1234567
+                try:
+                    total_size = int(content_range.split("/")[-1])
+                    if total_size < 10 * 1024 * 1024:  # 小于10MB
+                        logging.info(f"视频较小({total_size}bytes)，下载完整文件解析")
+                        full_response = requests.get(video_url, timeout=30)
+                        if full_response.status_code == 200:
+                            duration = self._parse_mp4_duration(full_response.content)
+                            if duration > 0:
+                                logging.info(f"从完整MP4解析到时长: {duration}秒")
+                                return duration
+                except (ValueError, IndexError):
+                    pass
+            
+            logging.warning("无法从视频URL解析时长")
+            return 0
+            
+        except requests.Timeout:
+            logging.warning("下载视频超时")
+            return 0
+        except Exception as e:
+            logging.warning(f"获取视频时长失败: {str(e)}")
+            return 0
+    
+    def _parse_mp4_duration(self, data: bytes) -> float:
+        """
+        解析MP4文件数据，提取视频时长
+        
+        MP4文件结构：由atom（box）组成
+        - moov atom 包含元数据
+        - moov/mvhd atom 包含时长信息
+        
+        Args:
+            data: MP4文件数据（部分或完整）
+            
+        Returns:
+            视频时长（秒），失败返回0
+        """
+        import struct
+        import logging
+        
+        def find_atom(data: bytes, atom_type: bytes, start: int = 0) -> tuple:
+            """查找指定类型的atom，返回(位置, 大小)"""
+            pos = start
+            while pos < len(data) - 8:
+                try:
+                    size = struct.unpack(">I", data[pos:pos+4])[0]
+                    atype = data[pos+4:pos+8]
+                    
+                    if size == 0:  # atom到文件末尾
+                        size = len(data) - pos
+                    elif size == 1:  # 扩展大小
+                        if pos + 16 <= len(data):
+                            size = struct.unpack(">Q", data[pos+8:pos+16])[0]
+                        else:
+                            break
+                    
+                    if atype == atom_type:
+                        return pos, size
+                    
+                    if size < 8:
+                        break
+                    pos += size
+                except:
+                    break
+            return -1, 0
+        
+        try:
+            # 查找moov atom
+            moov_pos, moov_size = find_atom(data, b'moov')
+            if moov_pos < 0:
+                logging.debug("未找到moov atom")
+                return 0
+            
+            # 在moov内查找mvhd atom
+            moov_end = min(moov_pos + moov_size, len(data))
+            mvhd_pos, mvhd_size = find_atom(data, b'mvhd', moov_pos + 8)
+            
+            if mvhd_pos < 0 or mvhd_pos >= moov_end:
+                logging.debug("未找到mvhd atom")
+                return 0
+            
+            # 解析mvhd atom
+            mvhd_data = data[mvhd_pos + 8:]  # 跳过size和type
+            if len(mvhd_data) < 20:
+                return 0
+            
+            version = mvhd_data[0]
+            
+            if version == 0:
+                # 32位版本
+                if len(mvhd_data) < 20:
+                    return 0
+                timescale = struct.unpack(">I", mvhd_data[12:16])[0]
+                duration = struct.unpack(">I", mvhd_data[16:20])[0]
+            elif version == 1:
+                # 64位版本
+                if len(mvhd_data) < 28:
+                    return 0
+                timescale = struct.unpack(">I", mvhd_data[20:24])[0]
+                duration = struct.unpack(">Q", mvhd_data[24:32])[0]
+            else:
+                return 0
+            
+            if timescale > 0:
+                duration_seconds = duration / timescale
+                return round(duration_seconds, 2)
+            
+            return 0
+            
+        except Exception as e:
+            logging.debug(f"解析MP4失败: {str(e)}")
+            return 0
+
     def _invoke(
         self, tool_parameters: dict[str, Any]
     ) -> Generator[ToolInvokeMessage, None, None]:
@@ -798,16 +949,40 @@ class TextToVideoTool(Tool):
                 result = response.json()
                 status = result.get("status", "unknown")
                 
+                # 调试：输出完整API返回结构
+                import logging
+                logging.info(f"[火山方舟] API返回结构: {result}")
+                
                 if status == "succeeded":
-                    # 获取视频URL
-                    video_url = result.get("content", {}).get("video_url", "")
+                    # 获取视频URL和时长
+                    content = result.get("content", {})
+                    video_url = content.get("video_url", "")
+                    
+                    # 火山方舟返回的实际视频时长（秒）
+                    # 尝试多个可能的字段位置
+                    video_duration = (
+                        content.get("duration") or 
+                        content.get("video_duration") or
+                        result.get("duration") or
+                        result.get("video_duration") or
+                        0
+                    )
+                    
+                    logging.info(f"[火山方舟] content字段: {content}")
+                    logging.info(f"[火山方舟] API返回的时长: {video_duration}")
+                    
+                    # 如果API没有返回时长，从视频URL提取
+                    if not video_duration and video_url:
+                        video_duration = self._get_video_duration_from_url(video_url)
+                        logging.info(f"[火山方舟] 从视频URL提取的时长: {video_duration}")
                     
                     # 方案2：视频URL放在最前面，便于工作流提取
+                    duration_text = f"\n⏱️ 实际时长: {video_duration}秒" if video_duration else ""
                     yield self.create_text_message(
                         f"{video_url}\n\n"
                         f"---\n"
                         f"🎉 **视频生成完成！**\n"
-                        f"📹 视频链接已在上方（可直接复制使用）\n"
+                        f"📹 视频链接已在上方（可直接复制使用）{duration_text}\n"
                         f"⚠️ 视频链接有效期24小时，请及时下载保存"
                     )
                     # 显示视频预览
@@ -819,7 +994,8 @@ class TextToVideoTool(Tool):
                         "model": model,
                         "task_id": task_id,
                         "status": "succeeded",
-                        "video_url": video_url
+                        "video_url": video_url,
+                        "duration": video_duration  # 返回实际视频时长
                     })
                     return
                     
