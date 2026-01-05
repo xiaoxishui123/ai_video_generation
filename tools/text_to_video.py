@@ -976,13 +976,22 @@ class TextToVideoTool(Tool):
                         video_duration = self._get_video_duration_from_url(video_url)
                         logging.info(f"[火山方舟] 从视频URL提取的时长: {video_duration}")
                     
-                    # 方案2：视频URL放在最前面，便于工作流提取
-                    duration_text = f"\n⏱️ 实际时长: {video_duration}秒" if video_duration else ""
+                    # 🔧 修复：第一个文本消息输出JSON格式，便于工作流提取duration
+                    # 工作流使用 tool.text 接收数据，所以必须在文本中包含duration
+                    import json as json_lib
+                    result_json = json_lib.dumps({
+                        "video_url": video_url,
+                        "duration": video_duration,
+                        "status": "succeeded"
+                    })
+                    
+                    duration_text = f"⏱️ 实际时长: {video_duration}秒\n" if video_duration else ""
                     yield self.create_text_message(
-                        f"{video_url}\n\n"
+                        f"{result_json}\n\n"
                         f"---\n"
                         f"🎉 **视频生成完成！**\n"
-                        f"📹 视频链接已在上方（可直接复制使用）{duration_text}\n"
+                        f"📹 视频URL: {video_url}\n"
+                        f"{duration_text}"
                         f"⚠️ 视频链接有效期24小时，请及时下载保存"
                     )
                     # 显示视频预览
