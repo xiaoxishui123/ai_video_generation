@@ -790,8 +790,8 @@ class TextToVideoTool(Tool):
             # 配音模式：不传递 duration 参数，让模型自动决定
             pass
         elif duration_mode == "frames" and frames:
-            # 按帧数模式
-            prompt_params.append(f"--dur {frames}")
+            # 按帧数模式：使用 --frames 参数（优先级高于 --dur）
+            prompt_params.append(f"--frames {frames}")
         elif duration_mode != "smart":
             # 按秒数模式（默认）
             if duration:
