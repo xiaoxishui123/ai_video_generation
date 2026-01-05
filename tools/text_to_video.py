@@ -15,6 +15,7 @@
 
 import time
 import base64
+import logging
 import requests
 from typing import Any, Generator
 from dify_plugin import Tool
