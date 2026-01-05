@@ -784,10 +784,14 @@ class TextToVideoTool(Tool):
             prompt_params.append(f"--rs {resolution}")
         
         # ✅ 添加时长参数 (--dur)
-        # 火山方舟支持3种时长设置方式：按秒数、按帧数、智能时长
-        if duration_mode == "frames" and frames:
-            # 按帧数模式：使用 --frames 或 --dur
-            prompt_params.append(f"--dur {frames}")  # 帧数也用 dur 传递
+        # 🔧 重要：当启用配音(enable_audio)时，不传递时长参数，让模型根据配音文本自动决定
+        # 火山方舟 Seedance 1.5 Pro 的配音功能会根据文本长度自动计算视频时长
+        if enable_audio:
+            # 配音模式：不传递 duration 参数，让模型自动决定
+            pass
+        elif duration_mode == "frames" and frames:
+            # 按帧数模式
+            prompt_params.append(f"--dur {frames}")
         elif duration_mode != "smart":
             # 按秒数模式（默认）
             if duration:
@@ -795,7 +799,6 @@ class TextToVideoTool(Tool):
                     prompt_params.append(f"--dur {int(duration)}")
                 except ValueError:
                     prompt_params.append("--dur 5")
-        # 智能时长模式不传递 dur 参数，让模型自动决定
         
         # ✅ 添加视频比例参数 (--rt)
         # 仅文生视频支持，图生视频由图片决定比例
