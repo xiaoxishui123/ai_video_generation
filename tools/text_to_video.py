@@ -795,32 +795,47 @@ class TextToVideoTool(Tool):
             prompt_params.append(f"--rs {resolution}")
         
         # ✅ 添加时长参数 (--dur)
-        # 🔧 官方确认：智能时长默认只生成约5秒，不会根据文本长度自动计算
-        # 需要手动计算时长并传递 --dur 参数
-        # 官方语速测试：90字 = 10秒 → 语速约 9字/秒
-        if enable_audio and full_prompt:
-            # 配音模式：根据文本长度计算时长，确保视频时长与配音匹配
+        # 🔧 火山方舟 Seedance 1.5 Pro 支持两种配置方法：
+        # - 指定具体时长：支持 [4,12] 范围内的任一整数
+        # - 不指定具体时长：设置为 -1，表示由模型在 [4,12] 范围内自主选择合适的视频长度
+        
+        # 检查是否明确要求使用智能时长（duration=-1 或 duration_mode=smart）
+        use_smart_duration = False
+        if duration is not None:
+            try:
+                if int(duration) == -1:
+                    use_smart_duration = True
+            except (ValueError, TypeError):
+                pass
+        if duration_mode == "smart":
+            use_smart_duration = True
+        
+        if use_smart_duration:
+            # 🆕 真正的智能时长模式：传递 --dur -1，让模型自主决定时长
+            prompt_params.append("--dur -1")
+            logging.info(f"🎤 使用智能时长模式: --dur -1 (模型自主决定 4-12 秒)")
+        elif enable_audio and full_prompt:
+            # 配音模式（非智能时长）：根据文本长度计算时长，确保视频时长与配音匹配
             text_for_duration = full_prompt.split('--')[0].strip()  # 去掉参数后缀
             char_count = len(text_for_duration.replace(' ', '').replace('\n', ''))
-            # 🔧 修复：使用 8字/秒（比标准9字/秒慢），确保有足够时间配完
+            # 使用 8字/秒（比标准9字/秒慢），确保有足够时间配完
             # 并且向上取整 +1 秒余量，避免配音被截断
             import math
-            calculated_duration = max(2, min(12, math.ceil(char_count / 8) + 1))
+            calculated_duration = max(4, min(12, math.ceil(char_count / 8) + 1))
             prompt_params.append(f"--dur {calculated_duration}")
             logging.info(f"🎤 配音时长计算: {char_count}字 ÷ 8字/秒 + 1秒余量 = {calculated_duration}秒")
         elif duration_mode == "frames" and frames:
             # 按帧数模式：使用 --frames 参数（优先级高于 --dur）
             prompt_params.append(f"--frames {frames}")
-        elif duration_mode != "smart":
+        elif duration:
             # 按秒数模式（默认）
-            if duration:
-                try:
-                    prompt_params.append(f"--dur {int(duration)}")
-                except ValueError:
-                    prompt_params.append("--dur 5")
+            try:
+                prompt_params.append(f"--dur {int(duration)}")
+            except ValueError:
+                prompt_params.append("--dur 5")
         else:
-            # 智能时长模式（非配音）：默认约5秒
-            pass
+            # 未指定时长，使用默认5秒
+            prompt_params.append("--dur 5")
         
         # ✅ 添加视频比例参数 (--rt)
         # 仅文生视频支持，图生视频由图片决定比例
